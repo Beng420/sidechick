@@ -1,0 +1,9 @@
+# Required on macOS/Windows/Linux.
+mss
+numpy
+pyautogui
+pynput
+
+# Optional Windows-only capture backend.
+# Uncomment this on Windows if you want to experiment with screen_backend = "dxcam".
+# dxcam
