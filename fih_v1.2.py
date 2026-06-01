@@ -81,7 +81,7 @@ class Config:
     min_wait_time: float = 10.0
     key_debounce: float = 0.25
     manual_input_debounce: float = 0.20
-    script_input_ignore: float = 0.20
+    script_input_ignore: float = 0.80
 
     # HYPE orb timing.
     orb_prepare_seconds: float = 50.0
@@ -95,6 +95,7 @@ class Config:
 
 
 CONFIG_PATH = Path(__file__).with_name("fih_config.json")
+STOP_PATH = Path(__file__).with_name("fih_stop.flag")
 
 
 def merge_defaults(defaults, loaded):
@@ -219,6 +220,7 @@ class InputHooks:
     @staticmethod
     def choose_backend(preferred: str) -> str:
         preferred = preferred.lower()
+        is_windows = platform.system().lower() == "windows"
 
         if preferred == "pynput":
             if pynput_keyboard is None or pynput_mouse is None:
@@ -227,6 +229,9 @@ class InputHooks:
             return "pynput"
 
         if preferred == "legacy":
+            return "legacy"
+
+        if is_windows and legacy_keyboard is not None and legacy_mouse is not None:
             return "legacy"
 
         if pynput_keyboard is not None and pynput_mouse is not None:
@@ -327,6 +332,8 @@ class FishingHelper:
         self.last_hotkey_time = 0.0
         self.last_manual_input_time = 0.0
         self.ignore_manual_until = 0.0
+        self.script_key_events_to_ignore = {}
+        self.script_right_clicks_to_ignore = 0
 
         self.last_cast_time = 0.0
         self.last_orb_time = time.monotonic()
@@ -426,6 +433,12 @@ class FishingHelper:
     def manual_override(self, source: str):
         with self.lock:
             now = time.monotonic()
+            if source == "Rechtsklick" and self.script_right_clicks_to_ignore > 0 and now < self.ignore_manual_until:
+                self.script_right_clicks_to_ignore -= 1
+                return
+            if now >= self.ignore_manual_until:
+                self.script_right_clicks_to_ignore = 0
+
             if self.should_ignore_manual_input(now):
                 return
 
@@ -441,6 +454,17 @@ class FishingHelper:
     def handle_key_press(self, key: str):
         hotkeys = self.cfg.hotkeys
         key = key.lower()
+
+        with self.lock:
+            ignored_count = self.script_key_events_to_ignore.get(key, 0)
+            if ignored_count > 0 and time.monotonic() < self.ignore_manual_until:
+                if ignored_count == 1:
+                    del self.script_key_events_to_ignore[key]
+                else:
+                    self.script_key_events_to_ignore[key] = ignored_count - 1
+                return
+            if time.monotonic() >= self.ignore_manual_until:
+                self.script_key_events_to_ignore.pop(key, None)
 
         if key == hotkeys.stop.lower():
             self.request_stop()
@@ -484,13 +508,20 @@ class FishingHelper:
             print("[HYPE] Orb vorgemerkt: wird vor dem naechsten Auswerfen gesetzt")
 
     def press_slot(self, slot: str):
-        self.run_script_input(lambda: pyautogui.press(slot))
+        self.run_script_input(lambda: pyautogui.press(slot), key=slot)
 
     def right_click(self):
-        self.run_script_input(pyautogui.rightClick)
+        self.run_script_input(pyautogui.rightClick, right_click=True)
 
-    def run_script_input(self, action: Callable[[], None]):
+    def run_script_input(self, action: Callable[[], None], key: str | None = None, right_click: bool = False):
         with self.lock:
+            if key is not None:
+                key = key.lower()
+                self.script_key_events_to_ignore[key] = self.script_key_events_to_ignore.get(key, 0) + 1
+
+            if right_click:
+                self.script_right_clicks_to_ignore += 1
+
             self.ignore_manual_until = time.monotonic() + self.cfg.script_input_ignore
             action()
             self.ignore_manual_until = time.monotonic() + self.cfg.script_input_ignore
@@ -528,6 +559,7 @@ class FishingHelper:
             self.next_step_at = time.monotonic()
             self.wait_for_color_reset = False
             print("--> Ablauf gestartet")
+            print("--> Ablauf: " + " -> ".join(step.name for step in self.steps))
 
     def finish_cycle(self):
         with self.lock:
@@ -581,6 +613,10 @@ class FishingHelper:
     def tick(self):
         now = time.monotonic()
 
+        if STOP_PATH.exists():
+            self.request_stop()
+            return
+
         if self.paused:
             return
 
@@ -595,6 +631,7 @@ class FishingHelper:
 
     def run(self):
         self.print_controls()
+        STOP_PATH.unlink(missing_ok=True)
         self.register_hotkeys()
 
         try:
@@ -604,6 +641,7 @@ class FishingHelper:
         finally:
             self.unregister_hotkeys()
             self.screen.close()
+            STOP_PATH.unlink(missing_ok=True)
 
 
 def main():

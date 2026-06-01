@@ -11,6 +11,7 @@ ENV/
 
 # Local user config
 fih_config.json
+fih_stop.flag
 
 # Build / packaging output
 build/
