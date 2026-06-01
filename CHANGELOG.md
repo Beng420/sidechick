@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.0
+
+- Added GitHub Release update checks in the launcher.
+- Added an Update button that downloads and installs the newest release on demand.
+- Kept `fih_config.json` local during updates so user settings are not overwritten.
+- Renamed the main script to stable `fih.py` so future updates can replace files reliably.
+
+## v1.3.0
+
+- Added a launcher UI for editing config values and starting/stopping FIh.
+- Added Running/Paused/Stopped status display.
+- Added Save/Reload tooltips.
+- Fixed launcher status switching to Stopped incorrectly.
+- Fixed script-generated key presses being treated as manual override input.
+- Improved Windows input backend selection.
+
 ## v1.2
 
 - Fishing-Ablauf in einzelne Schritte aufgeteilt, damit Pause/Fortsetzen zwischen Aktionen sauber funktioniert.

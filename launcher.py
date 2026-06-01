@@ -1,18 +1,34 @@
 import json
 import queue
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import tkinter as tk
 import threading
+import urllib.error
+import urllib.request
+import zipfile
 from pathlib import Path
 from tkinter import BooleanVar, DoubleVar, IntVar, StringVar, Tk, messagebox
 from tkinter import ttk
 
 
 APP_DIR = Path(__file__).resolve().parent
-SCRIPT_PATH = APP_DIR / "fih_v1.2.py"
+APP_VERSION = "v1.4.0"
+UPDATE_REPO = "Beng420/sidechick"
+SCRIPT_PATH = APP_DIR / "fih.py"
 CONFIG_PATH = APP_DIR / "fih_config.json"
 STOP_PATH = APP_DIR / "fih_stop.flag"
+RELEASE_API_URL = f"https://api.github.com/repos/{UPDATE_REPO}/releases/latest"
+UPDATE_KEEP_FILES = {
+    ".git",
+    "__pycache__",
+    "fih_config.json",
+    "fih_stop.flag",
+}
+UPDATE_ALLOWED_SUFFIXES = {".py", ".md", ".txt"}
 
 
 DEFAULT_CONFIG = {
@@ -63,13 +79,15 @@ class LauncherApp:
     def __init__(self):
         self.root = Tk()
         self.root.title("FIh Launcher")
-        self.root.geometry("760x620")
-        self.root.minsize(720, 560)
+        self.root.geometry("820x660")
+        self.root.minsize(780, 600)
 
         self.process = None
         self.process_exit_reported = False
         self.output_queue = queue.Queue()
         self.script_state = "stopped"
+        self.latest_release = None
+        self.update_available = False
         self.vars = {}
 
         self.style = ttk.Style()
@@ -200,17 +218,18 @@ class LauncherApp:
         header = ttk.Frame(root_frame)
         header.pack(fill="x")
 
-        ttk.Label(header, text="FIh Launcher", style="Header.TLabel").pack(side="left")
+        ttk.Label(header, text=f"FIh Launcher {APP_VERSION}", style="Header.TLabel").pack(side="left")
         self.status_label = ttk.Label(header, text="Stopped", style="Stopped.Status.TLabel")
         self.status_label.pack(side="right")
 
         controls = ttk.Frame(root_frame)
-        controls.pack(fill="x", pady=(16, 12))
+        controls.pack(fill="x", pady=(16, 8))
 
         self.start_button = ttk.Button(controls, text="Start", command=self.start_script)
         self.start_button.pack(side="left")
         self.stop_button = ttk.Button(controls, text="Stop", command=self.stop_script)
         self.stop_button.pack(side="left", padx=(8, 0))
+
         save_button = ttk.Button(controls, text="Save", command=self.save_from_ui)
         save_button.pack(side="right")
         ToolTip(save_button, "Writes the settings shown here to fih_config.json. The running script only uses them after restart.")
@@ -218,6 +237,20 @@ class LauncherApp:
         reload_button = ttk.Button(controls, text="Reload", command=self.reload_config)
         reload_button.pack(side="right", padx=(0, 8))
         ToolTip(reload_button, "Loads fih_config.json from disk and replaces the values currently shown in this window.")
+
+        update_controls = ttk.Frame(root_frame)
+        update_controls.pack(fill="x", pady=(0, 12))
+
+        self.check_update_button = ttk.Button(update_controls, text="Check updates", command=self.check_updates_async)
+        self.check_update_button.pack(side="left")
+        ToolTip(self.check_update_button, "Checks GitHub Releases for a newer version. Nothing is downloaded automatically.")
+
+        self.update_button = ttk.Button(update_controls, text="Update", command=self.install_update_async, state="disabled")
+        self.update_button.pack(side="left", padx=(8, 0))
+        ToolTip(self.update_button, "Downloads the newest GitHub Release and replaces local program files. Your config stays untouched.")
+
+        self.update_label = ttk.Label(update_controls, text="Updates not checked")
+        self.update_label.pack(side="left", padx=(10, 0), fill="x", expand=True)
 
         notebook = ttk.Notebook(root_frame)
         notebook.pack(fill="both", expand=True)
@@ -239,6 +272,7 @@ class LauncherApp:
         self.build_timing_tab(timing_tab)
         self.build_hotkey_tab(hotkey_tab)
         self.build_log_tab(log_tab)
+        self.root.after(500, self.check_updates_async)
 
     def build_general_tab(self, parent):
         self.add_combo(parent, "Start mode", "start_mode", ["trophy", "hype", "flay"], 0)
@@ -387,6 +421,96 @@ class LauncherApp:
         self.sync_variables_from_config()
         self.log("Config reloaded.")
 
+    def check_updates_async(self):
+        self.check_update_button.configure(state="disabled")
+        self.update_label.configure(text="Checking updates...")
+        threading.Thread(target=self.check_updates_worker, daemon=True).start()
+
+    def check_updates_worker(self):
+        try:
+            release = fetch_latest_release()
+            latest_version = release["tag_name"]
+            is_newer = version_is_newer(latest_version, APP_VERSION)
+        except Exception as exc:
+            self.root.after(0, lambda: self.show_update_error(exc))
+            return
+
+        self.root.after(0, lambda: self.show_update_result(release, is_newer))
+
+    def show_update_result(self, release, is_newer):
+        self.latest_release = release
+        self.update_available = is_newer
+        self.check_update_button.configure(state="normal")
+
+        if is_newer:
+            self.update_label.configure(text=f"Update available: {release['tag_name']}")
+            self.update_button.configure(state="normal")
+            self.log(f"Update available: {release['tag_name']}")
+        else:
+            self.update_label.configure(text=f"Up to date: {APP_VERSION}")
+            self.update_button.configure(state="disabled")
+            self.log(f"Up to date: {APP_VERSION}")
+
+    def show_update_error(self, exc):
+        self.check_update_button.configure(state="normal")
+        self.update_button.configure(state="disabled")
+        self.update_label.configure(text=str(exc))
+        self.log(f"Update check failed: {exc}")
+
+    def install_update_async(self):
+        if not self.latest_release or not self.update_available:
+            return
+
+        if self.process and self.process.poll() is None:
+            answer = messagebox.askyesno(
+                "Stop FIh?",
+                "FIh must be stopped before updating. Stop it now?",
+            )
+            if not answer:
+                return
+            self.terminate_script()
+
+        self.update_button.configure(state="disabled")
+        self.check_update_button.configure(state="disabled")
+        self.update_label.configure(text=f"Installing {self.latest_release['tag_name']}...")
+        threading.Thread(target=self.install_update_worker, daemon=True).start()
+
+    def install_update_worker(self):
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmp_path = Path(tmpdir)
+                zip_path = tmp_path / "release.zip"
+                download_release_zip(self.latest_release, zip_path)
+                extract_dir = tmp_path / "release"
+                extract_dir.mkdir()
+                with zipfile.ZipFile(zip_path, "r") as archive:
+                    archive.extractall(extract_dir)
+
+                source_dir = find_release_root(extract_dir)
+                copy_update_files(source_dir, APP_DIR)
+        except Exception as exc:
+            self.root.after(0, lambda: self.show_install_error(exc))
+            return
+
+        self.root.after(0, self.show_install_success)
+
+    def show_install_success(self):
+        version = self.latest_release["tag_name"]
+        self.update_label.configure(text=f"Installed {version}. Restart launcher.")
+        self.check_update_button.configure(state="normal")
+        self.log(f"Installed {version}. Restart the launcher to run the new version.")
+        messagebox.showinfo(
+            "Update installed",
+            "Update installed. Please close and restart the launcher so the new launcher code is loaded.",
+        )
+
+    def show_install_error(self, exc):
+        self.update_label.configure(text="Update failed")
+        self.check_update_button.configure(state="normal")
+        self.update_button.configure(state="normal" if self.update_available else "disabled")
+        self.log(f"Update failed: {exc}")
+        messagebox.showerror("Update failed", str(exc))
+
     def start_script(self):
         if self.process and self.process.poll() is None:
             return
@@ -519,6 +643,97 @@ class TextWithScrollbar:
         self.text.insert("end", message + "\n")
         self.text.see("end")
         self.text.configure(state="disabled")
+
+
+def fetch_latest_release():
+    request = urllib.request.Request(
+        RELEASE_API_URL,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": f"sidechick-launcher/{APP_VERSION}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise RuntimeError("No public release found yet") from exc
+        raise RuntimeError(f"GitHub returned HTTP {exc.code}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Could not reach GitHub: {exc.reason}") from exc
+
+
+def version_tuple(version: str):
+    cleaned = version.strip().lower().lstrip("v")
+    parts = re.findall(r"\d+", cleaned)
+    return tuple(int(part) for part in parts[:3])
+
+
+def version_is_newer(latest: str, current: str) -> bool:
+    latest_parts = version_tuple(latest)
+    current_parts = version_tuple(current)
+    max_length = max(len(latest_parts), len(current_parts), 3)
+    latest_parts = latest_parts + (0,) * (max_length - len(latest_parts))
+    current_parts = current_parts + (0,) * (max_length - len(current_parts))
+    return latest_parts > current_parts
+
+
+def release_download_url(release):
+    zip_assets = [
+        asset
+        for asset in release.get("assets", [])
+        if asset.get("name", "").lower().endswith(".zip")
+    ]
+
+    if zip_assets:
+        return zip_assets[0]["browser_download_url"]
+
+    return release["zipball_url"]
+
+
+def download_release_zip(release, destination: Path):
+    url = release_download_url(release)
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": f"sidechick-launcher/{APP_VERSION}"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        destination.write_bytes(response.read())
+
+
+def find_release_root(extract_dir: Path) -> Path:
+    children = [path for path in extract_dir.iterdir() if path.is_dir()]
+    if len(children) == 1:
+        return children[0]
+    return extract_dir
+
+
+def should_copy_update_file(path: Path) -> bool:
+    if path.name in UPDATE_KEEP_FILES:
+        return False
+    if any(part in UPDATE_KEEP_FILES for part in path.parts):
+        return False
+    return path.suffix.lower() in UPDATE_ALLOWED_SUFFIXES
+
+
+def copy_update_files(source_dir: Path, target_dir: Path):
+    copied = 0
+    for source in source_dir.rglob("*"):
+        if not source.is_file():
+            continue
+
+        relative = source.relative_to(source_dir)
+        if not should_copy_update_file(relative):
+            continue
+
+        target = target_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        copied += 1
+
+    if copied == 0:
+        raise RuntimeError("No update files were found in the release ZIP.")
 
 
 class ToolTip:

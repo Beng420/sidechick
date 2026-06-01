@@ -17,6 +17,7 @@ fih_stop.flag
 build/
 dist/
 *.egg-info/
+*.zip
 
 # Test / tooling caches
 .pytest_cache/
