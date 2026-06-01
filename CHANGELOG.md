@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.1
+
+- Update check now reports the release version found on GitHub, even when the local launcher is already up to date.
+- Update check now includes pre-releases, so test releases are visible while the project is still early.
+
 ## v1.4.0
 
 - Added GitHub Release update checks in the launcher.

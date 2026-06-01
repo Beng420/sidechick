@@ -16,12 +16,12 @@ from tkinter import ttk
 
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "v1.4.0"
+APP_VERSION = "v1.4.1"
 UPDATE_REPO = "Beng420/sidechick"
 SCRIPT_PATH = APP_DIR / "fih.py"
 CONFIG_PATH = APP_DIR / "fih_config.json"
 STOP_PATH = APP_DIR / "fih_stop.flag"
-RELEASE_API_URL = f"https://api.github.com/repos/{UPDATE_REPO}/releases/latest"
+RELEASES_API_URL = f"https://api.github.com/repos/{UPDATE_REPO}/releases?per_page=20"
 UPDATE_KEEP_FILES = {
     ".git",
     "__pycache__",
@@ -442,14 +442,22 @@ class LauncherApp:
         self.update_available = is_newer
         self.check_update_button.configure(state="normal")
 
+        latest_version = release["tag_name"]
+        release_kind = "pre-release" if release.get("prerelease") else "release"
         if is_newer:
-            self.update_label.configure(text=f"Update available: {release['tag_name']}")
+            message = f"Found {latest_version} ({release_kind}). Update available."
+            self.update_label.configure(text=message)
             self.update_button.configure(state="normal")
-            self.log(f"Update available: {release['tag_name']}")
-        else:
-            self.update_label.configure(text=f"Up to date: {APP_VERSION}")
+        elif same_version(latest_version, APP_VERSION):
+            message = f"Found {latest_version} ({release_kind}). You are up to date."
+            self.update_label.configure(text=message)
             self.update_button.configure(state="disabled")
-            self.log(f"Up to date: {APP_VERSION}")
+        else:
+            message = f"Found {latest_version} ({release_kind}). Local version {APP_VERSION} is newer."
+            self.update_label.configure(text=message)
+            self.update_button.configure(state="disabled")
+
+        self.log(message)
 
     def show_update_error(self, exc):
         self.check_update_button.configure(state="normal")
@@ -647,7 +655,7 @@ class TextWithScrollbar:
 
 def fetch_latest_release():
     request = urllib.request.Request(
-        RELEASE_API_URL,
+        RELEASES_API_URL,
         headers={
             "Accept": "application/vnd.github+json",
             "User-Agent": f"sidechick-launcher/{APP_VERSION}",
@@ -655,13 +663,19 @@ def fetch_latest_release():
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
-            return json.loads(response.read().decode("utf-8"))
+            releases = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            raise RuntimeError("No public release found yet") from exc
+            raise RuntimeError("No public release found yet, or repo is not reachable") from exc
         raise RuntimeError(f"GitHub returned HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Could not reach GitHub: {exc.reason}") from exc
+
+    for release in releases:
+        if not release.get("draft"):
+            return release
+
+    raise RuntimeError("No published release found yet")
 
 
 def version_tuple(version: str):
@@ -677,6 +691,15 @@ def version_is_newer(latest: str, current: str) -> bool:
     latest_parts = latest_parts + (0,) * (max_length - len(latest_parts))
     current_parts = current_parts + (0,) * (max_length - len(current_parts))
     return latest_parts > current_parts
+
+
+def same_version(left: str, right: str) -> bool:
+    left_parts = version_tuple(left)
+    right_parts = version_tuple(right)
+    max_length = max(len(left_parts), len(right_parts), 3)
+    left_parts = left_parts + (0,) * (max_length - len(left_parts))
+    right_parts = right_parts + (0,) * (max_length - len(right_parts))
+    return left_parts == right_parts
 
 
 def release_download_url(release):
