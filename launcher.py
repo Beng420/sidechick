@@ -16,7 +16,7 @@ from tkinter import ttk
 
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "v1.4.1"
+APP_VERSION = "v1.4.2"
 UPDATE_REPO = "Beng420/sidechick"
 SCRIPT_PATH = APP_DIR / "fih.py"
 CONFIG_PATH = APP_DIR / "fih_config.json"
