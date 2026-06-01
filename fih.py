@@ -83,7 +83,7 @@ class Config:
     manual_input_debounce: float = 0.20
     script_input_ignore: float = 0.80
 
-    # HYPE orb timing.
+    # Orb timing.
     orb_prepare_seconds: float = 50.0
 
     # Startup state.
@@ -325,7 +325,7 @@ class FishingHelper:
 
         self.timer_mode_enabled = self.cfg.timer_mode_enabled
         self.orb_mode_enabled = self.cfg.orb_mode_enabled
-        self.orb_pending = False
+        self.orb_pending = self.orb_mode_enabled
 
         self.paused = False
         self.stop_requested = False
@@ -337,6 +337,8 @@ class FishingHelper:
 
         self.last_cast_time = 0.0
         self.last_orb_time = time.monotonic()
+        if self.orb_pending:
+            self.last_orb_time -= self.cfg.orb_prepare_seconds
         self.next_scan_at = 0.0
         self.wait_for_color_reset = False
 
@@ -374,7 +376,16 @@ class FishingHelper:
             f"[{hotkeys.timer_mode}] Timer | [{hotkeys.fishing_mode}] Modus | [{hotkeys.orb_mode}] Orb"
         )
         print(f"Manueller Rechtsklick oder Taste {manual_keys} verwirft den laufenden Ablauf.")
-        print(f"Aktiver Fishing-Modus: {self.mode.value.upper()}")
+        self.print_mode_status()
+
+    def mode_status_text(self) -> str:
+        timer = "ON" if self.timer_mode_enabled else "OFF"
+        orb = "ON" if self.orb_mode_enabled else "OFF"
+        pending = "YES" if self.orb_pending else "NO"
+        return f"Fishing={self.mode.value.upper()} | Timer={timer} | Orb={orb} | OrbPending={pending}"
+
+    def print_mode_status(self):
+        print(f"--> Modi: {self.mode_status_text()}")
 
     def hotkey_allowed(self) -> bool:
         now = time.monotonic()
@@ -405,6 +416,7 @@ class FishingHelper:
                 return
             self.mode_index = (self.mode_index + 1) % len(self.mode_order)
             print(f"--> Fishing-Modus: {self.mode.value.upper()}")
+            self.print_mode_status()
 
     def toggle_timer_mode(self):
         with self.lock:
@@ -413,14 +425,22 @@ class FishingHelper:
             self.timer_mode_enabled = not self.timer_mode_enabled
             label = "TIMER (min. 10s)" if self.timer_mode_enabled else "NORMAL"
             print(f"--> Timer-Modus: {label}")
+            self.print_mode_status()
 
     def toggle_orb_mode(self):
         with self.lock:
             if not self.hotkey_allowed():
                 return
             self.orb_mode_enabled = not self.orb_mode_enabled
-            label = "Orb" if self.orb_mode_enabled else "No Orb"
+            if self.orb_mode_enabled:
+                self.orb_pending = True
+                self.last_orb_time = time.monotonic() - self.cfg.orb_prepare_seconds
+                label = "Orb (naechster Ablauf setzt Orb)"
+            else:
+                self.orb_pending = False
+                label = "No Orb"
             print(f"--> Orb-Modus: {label}")
+            self.print_mode_status()
 
     def should_ignore_manual_input(self, now: float) -> bool:
         if now < self.ignore_manual_until:
@@ -496,7 +516,7 @@ class FishingHelper:
         return (now - self.last_cast_time) >= self.cfg.min_wait_time
 
     def update_orb_state(self, now: float):
-        if self.mode != FishingMode.HYPE:
+        if not self.orb_mode_enabled:
             self.orb_pending = False
             return
 
@@ -505,7 +525,8 @@ class FishingHelper:
 
         if now - self.last_orb_time >= self.cfg.orb_prepare_seconds:
             self.orb_pending = True
-            print("[HYPE] Orb vorgemerkt: wird vor dem naechsten Auswerfen gesetzt")
+            print("[ORB] Orb vorgemerkt: wird vor dem naechsten Auswerfen gesetzt")
+            self.print_mode_status()
 
     def press_slot(self, slot: str):
         self.run_script_input(lambda: pyautogui.press(slot), key=slot)
@@ -583,6 +604,7 @@ class FishingHelper:
             if step.name == "Orb setzen":
                 self.last_orb_time = time.monotonic()
                 self.orb_pending = False
+                self.print_mode_status()
 
             self.step_index += 1
             self.next_step_at = time.monotonic() + step.delay_after

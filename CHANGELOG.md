@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.2
+
+- Added Overlay for fishing mode, timer mode and orb mode
+- Fixed Orb mode not working outside of Hype mode
+
 ## v1.4.1
 
 - Update check now reports the release version found on GitHub, even when the local launcher is already up to date.

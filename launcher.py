@@ -96,6 +96,7 @@ class LauncherApp:
 
         self.config = self.load_config()
         self.create_variables()
+        self.mode_status_var = StringVar(value=self.startup_mode_summary())
         self.build_ui()
         self.refresh_status()
         self.root.protocol("WM_DELETE_WINDOW", self.close)
@@ -110,6 +111,7 @@ class LauncherApp:
         self.style.configure("Running.Status.TLabel", font=("Segoe UI", 10, "bold"), foreground="#1f8a45")
         self.style.configure("Paused.Status.TLabel", font=("Segoe UI", 10, "bold"), foreground="#b7791f")
         self.style.configure("Stopped.Status.TLabel", font=("Segoe UI", 10, "bold"), foreground="#b83232")
+        self.style.configure("Modes.TLabel", font=("Segoe UI", 9), foreground="#404040")
         self.style.configure("TButton", padding=(12, 6))
         self.style.configure("TLabelframe", background="#f5f5f2", padding=10)
         self.style.configure("TLabelframe.Label", background="#f5f5f2", font=("Segoe UI", 10, "bold"))
@@ -221,6 +223,10 @@ class LauncherApp:
         ttk.Label(header, text=f"FIh Launcher {APP_VERSION}", style="Header.TLabel").pack(side="left")
         self.status_label = ttk.Label(header, text="Stopped", style="Stopped.Status.TLabel")
         self.status_label.pack(side="right")
+
+        modes = ttk.Frame(root_frame)
+        modes.pack(fill="x", pady=(6, 0))
+        ttk.Label(modes, textvariable=self.mode_status_var, style="Modes.TLabel").pack(side="left")
 
         controls = ttk.Frame(root_frame)
         controls.pack(fill="x", pady=(16, 8))
@@ -361,6 +367,26 @@ class LauncherApp:
         ttk.Entry(parent, textvariable=self.vars[key], width=18).grid(row=row, column=column + 1, sticky="ew", pady=pady, padx=(0, 18))
         parent.columnconfigure(column + 1, weight=1)
 
+    @staticmethod
+    def on_off(value):
+        return "ON" if value else "OFF"
+
+    def startup_mode_summary(self):
+        return (
+            f"Startup modes: Fishing {self.config['start_mode'].upper()} | "
+            f"Timer {self.on_off(self.config['timer_mode_enabled'])} | "
+            f"Orb {self.on_off(self.config['orb_mode_enabled'])}"
+        )
+
+    @staticmethod
+    def live_mode_summary(raw_status):
+        parts = dict(re.findall(r"([A-Za-z]+)=([^|]+)", raw_status))
+        fishing = parts.get("Fishing", "?").strip().upper()
+        timer = parts.get("Timer", "?").strip().upper()
+        orb = parts.get("Orb", "?").strip().upper()
+        pending = parts.get("OrbPending", "?").strip().upper()
+        return f"Live modes: Fishing {fishing} | Timer {timer} | Orb {orb} | Orb pending {pending}"
+
     def config_from_variables(self):
         manual_keys = [
             key.strip()
@@ -414,11 +440,13 @@ class LauncherApp:
         except Exception as exc:
             messagebox.showerror("Save failed", str(exc))
             return
+        self.mode_status_var.set(self.startup_mode_summary())
         self.log("Config saved.")
 
     def reload_config(self):
         self.config = self.load_config()
         self.sync_variables_from_config()
+        self.mode_status_var.set(self.startup_mode_summary())
         self.log("Config reloaded.")
 
     def check_updates_async(self):
@@ -536,6 +564,7 @@ class LauncherApp:
         self.process_exit_reported = False
         threading.Thread(target=self.read_process_output, daemon=True).start()
         self.set_state("running")
+        self.mode_status_var.set("Live modes: waiting for script status...")
         self.log("Started FIh.")
 
     def stop_script(self):
@@ -566,6 +595,10 @@ class LauncherApp:
         self.root.after(250, self.refresh_status)
 
     def update_state_from_output(self, message):
+        if "--> Modi:" in message:
+            raw_status = message.split("--> Modi:", 1)[1].strip()
+            self.mode_status_var.set(self.live_mode_summary(raw_status))
+
         if "--> PAUSE" in message:
             self.set_state("paused")
         elif "--> Weiter" in message:
