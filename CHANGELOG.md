@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.7.0
+
+- Added parallel runtime support so FIh and Superpairs can run at the same time.
+- Added Sidechick runtime pause/resume controls per script.
+- Starting one script now pauses other running scripts automatically.
+- Runtime hotkeys now belong to the selected script only.
+- Added FIh status-card controls for fishing mode, timer mode, and orb mode.
+- Added launcher-to-script runtime commands so FIh mode changes apply without restarting the script.
+- Added per-script option to disable script-owned hotkeys when hotkeys conflict.
+
+## v1.6.0
+
+- Rebuilt Sidechick as a pywebview app with a Python backend and HTML/CSS/JS frontend.
+- Added per-script config files under `configs/`.
+- Added dynamic per-script settings in the UI.
+- Added colored runtime status cards.
+
+## v1.5.0
+
+- Renamed the app entry file to `sidechick.pyw`.
+- Added a Sidechick script selector with FIh and Superpairs support.
+- Added a left script drawer, dark mode, and a compact FIh mode status grid.
+- Added an Install requirements button.
+- Added configurable pause hotkey lists and mouse button bindings.
+- Changed app file type from .py to .pyw so theres no console window being opened alongside it.
+
 ## v1.4.2
 
 - Added Overlay for fishing mode, timer mode and orb mode
@@ -7,22 +33,22 @@
 
 ## v1.4.1
 
-- Update check now reports the release version found on GitHub, even when the local launcher is already up to date.
+- Update check now reports the release version found on GitHub, even when local Sidechick is already up to date.
 - Update check now includes pre-releases, so test releases are visible while the project is still early.
 
 ## v1.4.0
 
-- Added GitHub Release update checks in the launcher.
+- Added GitHub Release update checks in Sidechick.
 - Added an Update button that downloads and installs the newest release on demand.
 - Kept `fih_config.json` local during updates so user settings are not overwritten.
 - Renamed the main script to stable `fih.py` so future updates can replace files reliably.
 
 ## v1.3.0
 
-- Added a launcher UI for editing config values and starting/stopping FIh.
+- Added a Sidechick UI for editing config values and starting/stopping FIh.
 - Added Running/Paused/Stopped status display.
 - Added Save/Reload tooltips.
-- Fixed launcher status switching to Stopped incorrectly.
+- Fixed Sidechick status switching to Stopped incorrectly.
 - Fixed script-generated key presses being treated as manual override input.
 - Improved Windows input backend selection.
 

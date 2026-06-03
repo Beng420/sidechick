@@ -11,7 +11,12 @@ ENV/
 
 # Local user config
 fih_config.json
+sidechick_config.json
+configs/*.json
 fih_stop.flag
+superpairs_stop.flag
+fih_control.json
+superpairs_control.json
 
 # Build / packaging output
 build/

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sidechick</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <button class="icon-button" id="sidebar-toggle" title="Collapse sidebar">&lt;</button>
+        <div>
+          <div class="eyebrow">All Scripts</div>
+          <h2>Sidechick</h2>
+        </div>
+      </div>
+      <nav class="script-list" id="script-list"></nav>
+      <div class="sidebar-foot">
+        <button class="secondary" id="requirements-button">Install requirements</button>
+      </div>
+    </aside>
+
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1 id="app-title">Sidechick</h1>
+          <p id="app-subtitle">Loading scripts...</p>
+        </div>
+        <div class="top-actions">
+          <button class="secondary" id="check-updates-button">Check updates</button>
+          <button class="primary" id="install-update-button" disabled>Update</button>
+        </div>
+      </header>
+
+      <section class="script-tabs" id="script-tabs"></section>
+
+      <section class="status-grid" id="status-grid"></section>
+
+      <section class="workspace">
+        <section class="panel settings-panel">
+          <div class="panel-head">
+            <div>
+              <div class="eyebrow">Settings</div>
+              <h2 id="settings-title">Script settings</h2>
+            </div>
+            <div class="panel-actions">
+              <button class="secondary" id="reload-button">Reload</button>
+              <button class="primary" id="save-button">Save</button>
+            </div>
+          </div>
+          <div id="settings-form" class="settings-form"></div>
+        </section>
+
+        <section class="panel console-panel">
+          <div class="panel-head compact">
+            <div>
+              <div class="eyebrow">Runtime</div>
+              <h2>Log</h2>
+            </div>
+            <div class="panel-actions">
+              <button class="primary" id="start-button">Start</button>
+              <button class="secondary" id="pause-button" disabled>Pause</button>
+              <button class="danger" id="stop-button" disabled>Stop</button>
+            </div>
+          </div>
+          <div class="update-line" id="update-line">Updates not checked.</div>
+          <pre id="log-output" class="log-output"></pre>
+        </section>
+      </section>
+    </main>
+
+    <div class="capture-overlay hidden" id="capture-overlay">
+      <div class="capture-box">
+        <h2>Set binding</h2>
+        <p>Press a key or mouse button. Escape clears the field.</p>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

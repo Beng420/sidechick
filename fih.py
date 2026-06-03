@@ -1,5 +1,6 @@
 import json
 import platform
+import sys
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
@@ -42,6 +43,28 @@ except ImportError:
 
 pyautogui.PAUSE = 0
 
+CURRENT_CONFIG_VERSION = 3
+FAST_ACTION_GAP = 0.03
+PAUSE_KEY_DEBOUNCE = 0.06
+MOUSE_BUTTON_ALIASES = {
+    "left": "left",
+    "mouse:left": "left",
+    "mouse1": "left",
+    "right": "right",
+    "mouse:right": "right",
+    "mouse2": "right",
+    "middle": "middle",
+    "mouse:middle": "middle",
+    "mouse3": "middle",
+    "x": "x",
+    "mouse:x": "x",
+    "x1": "x",
+    "mouse4": "x",
+    "x2": "x2",
+    "mouse:x2": "x2",
+    "mouse5": "x2",
+}
+
 
 class FishingMode(str, Enum):
     TROPHY = "trophy"
@@ -52,15 +75,18 @@ class FishingMode(str, Enum):
 @dataclass
 class Hotkeys:
     stop: str = "f1"
-    pause: str = "enter"
+    pause: list[str] = field(default_factory=lambda: ["enter"])
     timer_mode: str = "f4"
     fishing_mode: str = "f6"
     orb_mode: str = "f7"
     manual_override_keys: list[str] = field(default_factory=lambda: [str(number) for number in range(1, 10)])
+    manual_override_mouse_buttons: list[str] = field(default_factory=lambda: ["mouse:right"])
 
 
 @dataclass
 class Config:
+    config_version: int = CURRENT_CONFIG_VERSION
+
     # Screen area where the bite color appears: (left, top, width, height).
     region: tuple[int, int, int, int] = (1519, 724, 17, 50)
     target_rgb: tuple[int, int, int] = (252, 84, 84)
@@ -76,7 +102,7 @@ class Config:
     # Timings.
     poll_interval: float = 0.05
     scan_interval: float = 0.12
-    action_gap: float = 0.12
+    action_gap: float = FAST_ACTION_GAP
     post_cycle_gap: float = 0.50
     min_wait_time: float = 10.0
     key_debounce: float = 0.25
@@ -90,12 +116,16 @@ class Config:
     start_mode: str = "hype"
     timer_mode_enabled: bool = False
     orb_mode_enabled: bool = False
+    hotkeys_enabled: bool = True
 
     hotkeys: Hotkeys = field(default_factory=Hotkeys)
 
 
-CONFIG_PATH = Path(__file__).with_name("fih_config.json")
+CONFIG_DIR = Path(__file__).with_name("configs")
+CONFIG_PATH = CONFIG_DIR / "fih.json"
+LEGACY_CONFIG_PATH = Path(__file__).with_name("fih_config.json")
 STOP_PATH = Path(__file__).with_name("fih_stop.flag")
+CONTROL_PATH = Path(__file__).with_name("fih_control.json")
 
 
 def merge_defaults(defaults, loaded):
@@ -110,25 +140,116 @@ def merge_defaults(defaults, loaded):
     return result
 
 
+def normalize_binding(value) -> str:
+    binding = str(value).strip().lower().replace(" ", "")
+    if not binding or binding in {"none", "off", "-"}:
+        return ""
+    if binding in MOUSE_BUTTON_ALIASES:
+        return f"mouse:{MOUSE_BUTTON_ALIASES[binding]}"
+    return binding
+
+
+def binding_list(value) -> list[str]:
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = str(value).split(",")
+
+    bindings = []
+    for item in raw_values:
+        binding = normalize_binding(item)
+        if binding and binding not in bindings:
+            bindings.append(binding)
+    return bindings
+
+
+def first_binding(value) -> str:
+    bindings = binding_list(value)
+    return bindings[0] if bindings else ""
+
+
+def is_mouse_binding(binding: str) -> bool:
+    return normalize_binding(binding).startswith("mouse:")
+
+
+def mouse_button_from_binding(binding: str) -> str:
+    return normalize_binding(binding).split(":", 1)[1]
+
+
+def keyboard_bindings(bindings) -> list[str]:
+    return [binding for binding in binding_list(bindings) if not is_mouse_binding(binding)]
+
+
+def mouse_bindings(bindings) -> list[str]:
+    return [binding for binding in binding_list(bindings) if is_mouse_binding(binding)]
+
+
+def migrate_config(data: dict) -> dict:
+    migrated = data.copy()
+    config_version = int(migrated.get("config_version", 1))
+
+    if config_version < 2:
+        if float(migrated.get("action_gap", 0.12)) == 0.12:
+            migrated["action_gap"] = FAST_ACTION_GAP
+        migrated["config_version"] = CURRENT_CONFIG_VERSION
+
+    if config_version < 3:
+        hotkeys = migrated.get("hotkeys", {}).copy()
+        hotkeys["pause"] = binding_list(hotkeys.get("pause", ["enter"]))
+        hotkeys["manual_override_keys"] = keyboard_bindings(hotkeys.get("manual_override_keys", []))
+        hotkeys["manual_override_mouse_buttons"] = mouse_bindings(
+            hotkeys.get("manual_override_mouse_buttons", ["mouse:right"])
+        )
+        migrated["hotkeys"] = hotkeys
+        migrated["config_version"] = CURRENT_CONFIG_VERSION
+
+    return migrated
+
+
 def config_from_dict(data: dict) -> Config:
+    data = migrate_config(data)
     merged = merge_defaults(asdict(Config()), data)
-    hotkeys = Hotkeys(**merged.pop("hotkeys"))
+    hotkey_data = merged.pop("hotkeys")
+    hotkey_data["stop"] = first_binding(hotkey_data.get("stop"))
+    hotkey_data["pause"] = binding_list(hotkey_data.get("pause"))
+    hotkey_data["timer_mode"] = first_binding(hotkey_data.get("timer_mode"))
+    hotkey_data["fishing_mode"] = first_binding(hotkey_data.get("fishing_mode"))
+    hotkey_data["orb_mode"] = first_binding(hotkey_data.get("orb_mode"))
+    hotkey_data["manual_override_keys"] = keyboard_bindings(hotkey_data.get("manual_override_keys"))
+    hotkey_data["manual_override_mouse_buttons"] = mouse_bindings(
+        hotkey_data.get("manual_override_mouse_buttons")
+    )
+    hotkeys = Hotkeys(**hotkey_data)
     cfg = Config(**merged, hotkeys=hotkeys)
     cfg.region = tuple(cfg.region)
     cfg.target_rgb = tuple(cfg.target_rgb)
-    cfg.hotkeys.manual_override_keys = [str(key) for key in cfg.hotkeys.manual_override_keys]
     return cfg
 
 
 def save_config(cfg: Config, path: Path = CONFIG_PATH):
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(asdict(cfg), indent=2) + "\n", encoding="utf-8")
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:
     if not path.exists():
+        if path == CONFIG_PATH and LEGACY_CONFIG_PATH.exists():
+            try:
+                data = json.loads(LEGACY_CONFIG_PATH.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Config konnte nicht gelesen werden: {LEGACY_CONFIG_PATH}") from exc
+
+            cfg = config_from_dict(data)
+            save_config(cfg, path)
+            print(f"Config migriert: {LEGACY_CONFIG_PATH.name} -> {path}")
+            return cfg
+
         cfg = Config()
         save_config(cfg, path)
-        print(f"Keine Config gefunden. Standardconfig erstellt: {path.name}")
+        print(f"Keine Config gefunden. Standardconfig erstellt: {path}")
         return cfg
 
     try:
@@ -138,7 +259,7 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
 
     cfg = config_from_dict(data)
     save_config(cfg, path)
-    print(f"Config geladen: {path.name}")
+    print(f"Config geladen: {path}")
     return cfg
 
 
@@ -221,35 +342,47 @@ class InputHooks:
     def choose_backend(preferred: str) -> str:
         preferred = preferred.lower()
         is_windows = platform.system().lower() == "windows"
+        legacy_available = legacy_keyboard is not None and legacy_mouse is not None
+        pynput_available = pynput_keyboard is not None and pynput_mouse is not None
 
         if preferred == "pynput":
-            if pynput_keyboard is None or pynput_mouse is None:
-                print("pynput ist nicht installiert. Nutze legacy Input-Hooks.")
-                return "legacy"
+            if not pynput_available:
+                print("pynput ist fuer dieses Python nicht verfuegbar. Versuche legacy Hotkey-Hooks.")
+                return "legacy" if legacy_available else "none"
             return "pynput"
 
         if preferred == "legacy":
+            if not legacy_available:
+                print("legacy Hotkey-Hooks brauchen die Pakete keyboard und mouse. Versuche pynput.")
+                return "pynput" if pynput_available else "none"
             return "legacy"
 
-        if is_windows and legacy_keyboard is not None and legacy_mouse is not None:
+        if is_windows and legacy_available:
             return "legacy"
 
-        if pynput_keyboard is not None and pynput_mouse is not None:
+        if pynput_available:
             return "pynput"
 
-        return "legacy"
+        return "none"
 
     def start(self):
+        if self.backend == "none":
+            raise SystemExit(
+                "Kein Hotkey-Backend verfuegbar.\n"
+                "Installiere die Requirements mit genau diesem Python:\n"
+                f"  {sys.executable} -m pip install -r requirements.txt"
+            )
+
         if self.backend == "pynput":
             self.start_pynput()
         else:
             self.start_legacy()
-        print(f"Input-Backend: {self.backend}")
+        print(f"Hotkey-Backend: {self.backend}")
 
     def stop(self):
         if self.backend == "pynput":
             self.stop_pynput()
-        else:
+        elif self.backend == "legacy":
             self.stop_legacy()
 
     def start_pynput(self):
@@ -267,11 +400,13 @@ class InputHooks:
     def handle_pynput_key(self, key):
         key_name = self.pynput_key_name(key)
         if key_name:
-            self.helper.handle_key_press(key_name)
+            self.helper.handle_binding_press(key_name)
 
     def handle_pynput_click(self, _x, _y, button, pressed):
-        if pressed and button == pynput_mouse.Button.right:
-            self.helper.manual_override("Rechtsklick")
+        if pressed:
+            button_name = getattr(button, "name", "")
+            if button_name:
+                self.helper.handle_binding_press(f"mouse:{button_name}")
 
     @staticmethod
     def pynput_key_name(key) -> str:
@@ -283,24 +418,30 @@ class InputHooks:
         return name.lower() if name else ""
 
     def start_legacy(self):
-        if legacy_keyboard is None or legacy_mouse is None:
-            raise SystemExit("Kein Input-Backend verfuegbar. Installiere am besten: pip install pynput")
-
         hotkeys = self.helper.cfg.hotkeys
-        self.hotkey_handles = [
-            legacy_keyboard.on_press_key(hotkeys.stop, lambda _: self.helper.request_stop()),
-            legacy_keyboard.on_press_key(hotkeys.pause, lambda _: self.helper.toggle_pause()),
-            legacy_keyboard.on_press_key(hotkeys.timer_mode, lambda _: self.helper.toggle_timer_mode()),
-            legacy_keyboard.on_press_key(hotkeys.fishing_mode, lambda _: self.helper.cycle_mode()),
-            legacy_keyboard.on_press_key(hotkeys.orb_mode, lambda _: self.helper.toggle_orb_mode()),
-        ]
-        self.hotkey_handles.extend(
-            legacy_keyboard.on_press_key(key, lambda _, manual_key=key: self.helper.manual_override(manual_key))
-            for key in hotkeys.manual_override_keys
-        )
-        self.mouse_handles = [
-            legacy_mouse.on_right_click(lambda: self.helper.manual_override("Rechtsklick")),
-        ]
+        self.bind_legacy(hotkeys.stop, self.helper.request_stop)
+        for pause_binding in hotkeys.pause:
+            self.bind_legacy(pause_binding, self.helper.toggle_pause)
+        self.bind_legacy(hotkeys.timer_mode, self.helper.toggle_timer_mode)
+        self.bind_legacy(hotkeys.fishing_mode, self.helper.cycle_mode)
+        self.bind_legacy(hotkeys.orb_mode, self.helper.toggle_orb_mode)
+
+        for binding in hotkeys.manual_override_keys + hotkeys.manual_override_mouse_buttons:
+            self.bind_legacy(binding, lambda manual_binding=binding: self.helper.manual_override(manual_binding))
+
+    def bind_legacy(self, binding: str, callback: Callable[[], None]):
+        binding = normalize_binding(binding)
+        if not binding:
+            return
+
+        if is_mouse_binding(binding):
+            button = mouse_button_from_binding(binding)
+            handle = legacy_mouse.on_button(callback, buttons=(button,), types=("down",))
+            self.mouse_handles.append(handle)
+            return
+
+        handle = legacy_keyboard.on_press_key(binding, lambda _: callback())
+        self.hotkey_handles.append(handle)
 
     def stop_legacy(self):
         for handle in self.hotkey_handles:
@@ -310,6 +451,65 @@ class InputHooks:
         for handle in self.mouse_handles:
             legacy_mouse.unhook(handle)
         self.mouse_handles = []
+
+
+class InputActions:
+    def __init__(self, cfg: Config):
+        self.backend = self.choose_backend(cfg.input_backend)
+        self.keyboard_controller = None
+        self.mouse_controller = None
+
+        if self.backend == "pynput":
+            self.keyboard_controller = pynput_keyboard.Controller()
+            self.mouse_controller = pynput_mouse.Controller()
+
+        print(f"Input-Ausgabe: {self.backend}")
+
+    @staticmethod
+    def choose_backend(preferred: str) -> str:
+        preferred = preferred.lower()
+        is_windows = platform.system().lower() == "windows"
+        legacy_available = legacy_keyboard is not None and legacy_mouse is not None
+        pynput_available = pynput_keyboard is not None and pynput_mouse is not None
+
+        if preferred == "pynput":
+            if pynput_available:
+                return "pynput"
+            if legacy_available:
+                return "legacy"
+            return "pyautogui"
+
+        if preferred == "legacy":
+            if legacy_available:
+                return "legacy"
+            if pynput_available:
+                return "pynput"
+            return "pyautogui"
+
+        if is_windows and legacy_available:
+            return "legacy"
+
+        if pynput_available:
+            return "pynput"
+
+        return "pyautogui"
+
+    def press_key(self, key: str):
+        if self.backend == "legacy":
+            legacy_keyboard.press_and_release(key)
+        elif self.backend == "pynput":
+            self.keyboard_controller.press(key)
+            self.keyboard_controller.release(key)
+        else:
+            pyautogui.press(key)
+
+    def right_click(self):
+        if self.backend == "legacy":
+            legacy_mouse.click("right")
+        elif self.backend == "pynput":
+            self.mouse_controller.click(pynput_mouse.Button.right, 1)
+        else:
+            pyautogui.rightClick()
 
 
 class FishingHelper:
@@ -329,7 +529,9 @@ class FishingHelper:
 
         self.paused = False
         self.stop_requested = False
-        self.last_hotkey_time = 0.0
+        self.last_control_mtime = 0
+        self.hotkeys_active = False
+        self.last_hotkey_times = {}
         self.last_manual_input_time = 0.0
         self.ignore_manual_until = 0.0
         self.script_key_events_to_ignore = {}
@@ -347,6 +549,7 @@ class FishingHelper:
         self.step_index = 0
         self.next_step_at = 0.0
 
+        self.input_actions = InputActions(cfg)
         self.input_hooks = InputHooks(self)
 
     @property
@@ -369,13 +572,28 @@ class FishingHelper:
     def print_controls(self):
         hotkeys = self.cfg.hotkeys
         manual_keys = ", ".join(hotkeys.manual_override_keys)
+        manual_buttons = ", ".join(hotkeys.manual_override_mouse_buttons)
+        pause_keys = ", ".join(hotkeys.pause)
 
         print("Skript gestartet.")
+        print(f"Python: {sys.executable}")
         print(
-            f"[{hotkeys.stop}] Beenden | [{hotkeys.pause}] Pause/Fortsetzen | "
+            "Pakete: "
+            f"pynput={'OK' if pynput_keyboard is not None and pynput_mouse is not None else 'fehlt'} | "
+            f"keyboard/mouse={'OK' if legacy_keyboard is not None and legacy_mouse is not None else 'fehlt'}"
+        )
+        print(
+            f"Timing: action_gap={self.cfg.action_gap:.3f}s | "
+            f"scan_interval={self.cfg.scan_interval:.3f}s | "
+            f"script_input_ignore={self.cfg.script_input_ignore:.3f}s"
+        )
+        print(
+            f"[{hotkeys.stop or 'none'}] Beenden | [{pause_keys or 'none'}] Pause/Fortsetzen | "
             f"[{hotkeys.timer_mode}] Timer | [{hotkeys.fishing_mode}] Modus | [{hotkeys.orb_mode}] Orb"
         )
-        print(f"Manueller Rechtsklick oder Taste {manual_keys} verwirft den laufenden Ablauf.")
+        if not self.cfg.hotkeys_enabled:
+            print("Script-Hotkeys sind deaktiviert. Steuerung laeuft ueber Sidechick.")
+        print(f"Manueller Input ({manual_keys}; {manual_buttons}) verwirft den laufenden Ablauf.")
         self.print_mode_status()
 
     def mode_status_text(self) -> str:
@@ -387,19 +605,27 @@ class FishingHelper:
     def print_mode_status(self):
         print(f"--> Modi: {self.mode_status_text()}")
 
-    def hotkey_allowed(self) -> bool:
+    def hotkey_allowed(self, action_name: str, debounce: float | None = None) -> bool:
         now = time.monotonic()
-        if now - self.last_hotkey_time < self.cfg.key_debounce:
+        last_time = self.last_hotkey_times.get(action_name, 0.0)
+        threshold = self.cfg.key_debounce if debounce is None else debounce
+        if now - last_time < threshold:
             return False
-        self.last_hotkey_time = now
+        self.last_hotkey_times[action_name] = now
         return True
 
     def toggle_pause(self):
         with self.lock:
-            if not self.hotkey_allowed():
+            if not self.hotkey_allowed("pause", PAUSE_KEY_DEBOUNCE):
                 return
 
-            self.paused = not self.paused
+            self.set_pause(not self.paused)
+
+    def set_pause(self, paused: bool):
+        with self.lock:
+            if self.paused == paused:
+                return
+            self.paused = paused
             if self.paused:
                 print(f"--> PAUSE. Weiter geht es mit: {self.current_step_name()}")
             else:
@@ -412,26 +638,44 @@ class FishingHelper:
 
     def cycle_mode(self):
         with self.lock:
-            if not self.hotkey_allowed():
+            if not self.hotkey_allowed("fishing_mode"):
                 return
-            self.mode_index = (self.mode_index + 1) % len(self.mode_order)
+            mode = self.mode_order[(self.mode_index + 1) % len(self.mode_order)]
+            self.set_fishing_mode(mode.value)
+
+    def set_fishing_mode(self, mode: str):
+        with self.lock:
+            try:
+                next_mode = FishingMode(str(mode).lower())
+            except ValueError:
+                print(f"Unbekannter Fishing-Modus vom Launcher: {mode!r}")
+                return
+            self.mode_index = self.mode_order.index(next_mode)
             print(f"--> Fishing-Modus: {self.mode.value.upper()}")
             self.print_mode_status()
 
     def toggle_timer_mode(self):
         with self.lock:
-            if not self.hotkey_allowed():
+            if not self.hotkey_allowed("timer_mode"):
                 return
-            self.timer_mode_enabled = not self.timer_mode_enabled
+            self.set_timer_mode(not self.timer_mode_enabled)
+
+    def set_timer_mode(self, enabled: bool):
+        with self.lock:
+            self.timer_mode_enabled = bool(enabled)
             label = "TIMER (min. 10s)" if self.timer_mode_enabled else "NORMAL"
             print(f"--> Timer-Modus: {label}")
             self.print_mode_status()
 
     def toggle_orb_mode(self):
         with self.lock:
-            if not self.hotkey_allowed():
+            if not self.hotkey_allowed("orb_mode"):
                 return
-            self.orb_mode_enabled = not self.orb_mode_enabled
+            self.set_orb_mode(not self.orb_mode_enabled)
+
+    def set_orb_mode(self, enabled: bool):
+        with self.lock:
+            self.orb_mode_enabled = bool(enabled)
             if self.orb_mode_enabled:
                 self.orb_pending = True
                 self.last_orb_time = time.monotonic() - self.cfg.orb_prepare_seconds
@@ -440,6 +684,13 @@ class FishingHelper:
                 self.orb_pending = False
                 label = "No Orb"
             print(f"--> Orb-Modus: {label}")
+            self.print_mode_status()
+
+    def set_orb_pending(self, pending: bool):
+        with self.lock:
+            self.orb_pending = bool(pending) and self.orb_mode_enabled
+            state = "vorgemerkt" if self.orb_pending else "bereit"
+            print(f"--> Orb-Placement: {state}")
             self.print_mode_status()
 
     def should_ignore_manual_input(self, now: float) -> bool:
@@ -453,7 +704,8 @@ class FishingHelper:
     def manual_override(self, source: str):
         with self.lock:
             now = time.monotonic()
-            if source == "Rechtsklick" and self.script_right_clicks_to_ignore > 0 and now < self.ignore_manual_until:
+            source = normalize_binding(source)
+            if source == "mouse:right" and self.script_right_clicks_to_ignore > 0 and now < self.ignore_manual_until:
                 self.script_right_clicks_to_ignore -= 1
                 return
             if now >= self.ignore_manual_until:
@@ -471,9 +723,11 @@ class FishingHelper:
             self.next_scan_at = now + self.cfg.post_cycle_gap
             self.wait_for_color_reset = True
 
-    def handle_key_press(self, key: str):
+    def handle_binding_press(self, key: str):
         hotkeys = self.cfg.hotkeys
-        key = key.lower()
+        key = normalize_binding(key)
+        if not key:
+            return
 
         with self.lock:
             ignored_count = self.script_key_events_to_ignore.get(key, 0)
@@ -486,24 +740,86 @@ class FishingHelper:
             if time.monotonic() >= self.ignore_manual_until:
                 self.script_key_events_to_ignore.pop(key, None)
 
-        if key == hotkeys.stop.lower():
+        if key == normalize_binding(hotkeys.stop):
             self.request_stop()
-        elif key == hotkeys.pause.lower():
+        elif key in hotkeys.pause:
             self.toggle_pause()
-        elif key == hotkeys.timer_mode.lower():
+        elif key == normalize_binding(hotkeys.timer_mode):
             self.toggle_timer_mode()
-        elif key == hotkeys.fishing_mode.lower():
+        elif key == normalize_binding(hotkeys.fishing_mode):
             self.cycle_mode()
-        elif key == hotkeys.orb_mode.lower():
+        elif key == normalize_binding(hotkeys.orb_mode):
             self.toggle_orb_mode()
-        elif key in [manual_key.lower() for manual_key in hotkeys.manual_override_keys]:
+        elif key in hotkeys.manual_override_keys or key in hotkeys.manual_override_mouse_buttons:
             self.manual_override(key)
 
     def register_hotkeys(self):
+        if self.hotkeys_active or not self.cfg.hotkeys_enabled:
+            return
         self.input_hooks.start()
+        self.hotkeys_active = True
 
     def unregister_hotkeys(self):
+        if not self.hotkeys_active:
+            return
         self.input_hooks.stop()
+        self.hotkeys_active = False
+
+    def set_hotkeys_enabled(self, enabled: bool):
+        enabled = bool(enabled)
+        if self.cfg.hotkeys_enabled == enabled and self.hotkeys_active == enabled:
+            return
+
+        self.cfg.hotkeys_enabled = enabled
+        if enabled:
+            self.register_hotkeys()
+            print("--> Script-Hotkeys: ON")
+        else:
+            self.unregister_hotkeys()
+            print("--> Script-Hotkeys: OFF")
+
+    def handle_control_file(self):
+        if not CONTROL_PATH.exists():
+            return
+
+        try:
+            stat = CONTROL_PATH.stat()
+        except OSError:
+            return
+
+        if stat.st_mtime_ns == self.last_control_mtime:
+            return
+        self.last_control_mtime = stat.st_mtime_ns
+
+        try:
+            data = json.loads(CONTROL_PATH.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+
+        command = data.get("command")
+        if command == "stop":
+            self.request_stop()
+        elif command == "pause":
+            self.set_pause(True)
+        elif command == "resume":
+            self.set_pause(False)
+        elif command == "toggle_pause":
+            self.set_pause(not self.paused)
+        elif command == "set_fishing_mode":
+            self.set_fishing_mode(data.get("mode", self.mode.value))
+        elif command == "set_timer_mode":
+            self.set_timer_mode(bool(data.get("enabled")))
+        elif command == "set_orb_mode":
+            self.set_orb_mode(bool(data.get("enabled")))
+        elif command == "set_orb_pending":
+            self.set_orb_pending(bool(data.get("pending")))
+        elif command == "set_runtime_state":
+            if "paused" in data:
+                self.set_pause(bool(data.get("paused")))
+            if "hotkeys_enabled" in data:
+                self.set_hotkeys_enabled(bool(data.get("hotkeys_enabled")))
+        elif command == "set_hotkeys_enabled":
+            self.set_hotkeys_enabled(bool(data.get("enabled")))
 
     def is_bite_color(self) -> bool:
         avg_rgb = np.array(self.screen.get_avg_rgb(), dtype=np.float32)
@@ -529,10 +845,10 @@ class FishingHelper:
             self.print_mode_status()
 
     def press_slot(self, slot: str):
-        self.run_script_input(lambda: pyautogui.press(slot), key=slot)
+        self.run_script_input(lambda: self.input_actions.press_key(slot), key=slot)
 
     def right_click(self):
-        self.run_script_input(pyautogui.rightClick, right_click=True)
+        self.run_script_input(self.input_actions.right_click, right_click=True)
 
     def run_script_input(self, action: Callable[[], None], key: str | None = None, right_click: bool = False):
         with self.lock:
@@ -639,6 +955,8 @@ class FishingHelper:
             self.request_stop()
             return
 
+        self.handle_control_file()
+
         if self.paused:
             return
 
@@ -654,6 +972,7 @@ class FishingHelper:
     def run(self):
         self.print_controls()
         STOP_PATH.unlink(missing_ok=True)
+        CONTROL_PATH.unlink(missing_ok=True)
         self.register_hotkeys()
 
         try:
@@ -664,6 +983,7 @@ class FishingHelper:
             self.unregister_hotkeys()
             self.screen.close()
             STOP_PATH.unlink(missing_ok=True)
+            CONTROL_PATH.unlink(missing_ok=True)
 
 
 def main():
