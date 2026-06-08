@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.8.0
+
+- Added mouse-following setting tooltips for every FIh and Superpairs option.
+- Added multi-binding support for all FIh hotkeys, matching the existing comma-separated Manual Keys behavior.
+- Added Set buttons and full binding support for FIh slot settings.
+- Added broader binding capture for numpad keys, modifier keys, special keys, German characters, punctuation keys, and mouse buttons.
+- Changed Superpairs to move the mouse away, wait before clicking, move back to the matched pixel, click, and then move away again.
+- Added configurable Superpairs pre-click delay.
+- Added multi-binding support for the Superpairs pause/resume hotkey.
+- Added a dependency-install prompt when Sidechick cannot open because pywebview is missing.
+- Added a post-update changelog popup that shows GitHub release notes after restarting into the updated version.
+
 ## v1.7.0
 
 - Added parallel runtime support so FIh and Superpairs can run at the same time.

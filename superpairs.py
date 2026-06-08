@@ -21,7 +21,20 @@ CONFIG_PATH = Path(__file__).with_name("configs") / "superpairs.json"
 running = True
 active = True
 last_control_mtime = 0
-hotkey_handle = None
+hotkey_handles = []
+KEYBOARD_HOTKEY_ALIASES = {
+    "comma": ",",
+    "minus": "-",
+    "period": ".",
+    "slash": "/",
+    "backslash": "\\",
+    "semicolon": ";",
+    "apostrophe": "'",
+    "backtick": "`",
+    "equals": "=",
+    "left bracket": "[",
+    "right bracket": "]",
+}
 
 DEFAULT_CONFIG = {
     "start_x": 801,
@@ -34,8 +47,9 @@ DEFAULT_CONFIG = {
     "tolerance": 20,
     "scan_interval": 0.10,
     "click_cooldown": 0.10,
+    "pre_click_delay": 0.50,
     "move_back_position": [700, 300],
-    "toggle_hotkey": "f1",
+    "toggle_hotkey": ["f1"],
     "hotkeys_enabled": True,
 }
 
@@ -84,12 +98,33 @@ TARGET_COLORS = [tuple(color) for color in CONFIG["target_colors"]]
 TOLERANCE = int(CONFIG["tolerance"])
 SCAN_INTERVAL = float(CONFIG["scan_interval"])
 CLICK_COOLDOWN = float(CONFIG["click_cooldown"])
+PRE_CLICK_DELAY = float(CONFIG["pre_click_delay"])
 MOVE_BACK_POSITION = tuple(CONFIG["move_back_position"])
 last_click_time = 0.0
 
 
 def color_matches(pixel_rgb, target_rgb):
     return all(abs(pixel - target) <= TOLERANCE for pixel, target in zip(pixel_rgb, target_rgb))
+
+
+def keyboard_hotkey_name(binding):
+    hotkey = str(binding).strip().lower().replace("_", " ")
+    hotkey = " ".join(hotkey.split()) or "f1"
+    return KEYBOARD_HOTKEY_ALIASES.get(hotkey, hotkey)
+
+
+def binding_list(value):
+    if isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = str(value or "").split(",")
+
+    bindings = []
+    for item in raw_values:
+        binding = keyboard_hotkey_name(item)
+        if binding and binding not in bindings:
+            bindings.append(binding)
+    return bindings
 
 
 def scan_and_click(sct):
@@ -117,8 +152,16 @@ def scan_and_click(sct):
             if remaining_cooldown > 0:
                 time.sleep(remaining_cooldown)
 
-            print(f"Match at {(x, y)}. Clicking.", flush=True)
-            pyautogui.click(x, y)
+            print(f"Match at {(x, y)}. Moving away before click.", flush=True)
+            pyautogui.moveTo(*MOVE_BACK_POSITION)
+            if PRE_CLICK_DELAY > 0:
+                time.sleep(PRE_CLICK_DELAY)
+
+            if not running or not active:
+                return False
+
+            pyautogui.moveTo(x, y)
+            pyautogui.click()
             last_click_time = time.monotonic()
             pyautogui.moveTo(*MOVE_BACK_POSITION)
             return True
@@ -147,7 +190,7 @@ def request_stop():
 
 
 def handle_control_file():
-    global last_control_mtime, CLICK_COOLDOWN, SCAN_INTERVAL
+    global last_control_mtime, CLICK_COOLDOWN, PRE_CLICK_DELAY, SCAN_INTERVAL
 
     if not CONTROL_PATH.exists():
         return
@@ -178,6 +221,9 @@ def handle_control_file():
     elif command == "set_click_cooldown":
         CLICK_COOLDOWN = max(0.0, float(data.get("seconds", CLICK_COOLDOWN)))
         print(f"Click cooldown set to {CLICK_COOLDOWN:.3f}s.", flush=True)
+    elif command == "set_pre_click_delay":
+        PRE_CLICK_DELAY = max(0.0, float(data.get("seconds", PRE_CLICK_DELAY)))
+        print(f"Pre-click delay set to {PRE_CLICK_DELAY:.3f}s.", flush=True)
     elif command == "set_scan_interval":
         SCAN_INTERVAL = max(0.01, float(data.get("seconds", SCAN_INTERVAL)))
         print(f"Scan interval set to {SCAN_INTERVAL:.3f}s.", flush=True)
@@ -191,7 +237,7 @@ def handle_control_file():
 
 
 def set_hotkeys_enabled(enabled):
-    global hotkey_handle
+    global hotkey_handles
 
     CONFIG["hotkeys_enabled"] = bool(enabled)
     if keyboard is None:
@@ -199,15 +245,17 @@ def set_hotkeys_enabled(enabled):
             print("keyboard package not available. Use Sidechick controls.", flush=True)
         return
 
-    if enabled and hotkey_handle is None:
-        hotkey = str(CONFIG["toggle_hotkey"]).strip() or "f1"
-        hotkey_handle = keyboard.add_hotkey(hotkey, toggle_active)
-        print(f"{hotkey} toggles Superpairs pause/resume.", flush=True)
+    if enabled and not hotkey_handles:
+        hotkeys = binding_list(CONFIG["toggle_hotkey"]) or ["f1"]
+        for hotkey in hotkeys:
+            hotkey_handles.append(keyboard.add_hotkey(hotkey, toggle_active))
+        print(f"{', '.join(hotkeys)} toggles Superpairs pause/resume.", flush=True)
         return
 
-    if not enabled and hotkey_handle is not None:
-        keyboard.remove_hotkey(hotkey_handle)
-        hotkey_handle = None
+    if not enabled and hotkey_handles:
+        for handle in hotkey_handles:
+            keyboard.remove_hotkey(handle)
+        hotkey_handles = []
         print("Script hotkeys disabled. Use Sidechick controls.", flush=True)
 
 

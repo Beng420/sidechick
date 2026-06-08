@@ -24,6 +24,11 @@ window.addEventListener("DOMContentLoaded", () => {
     "requirements-button",
     "sidebar-toggle",
     "capture-overlay",
+    "changelog-overlay",
+    "changelog-title",
+    "changelog-body",
+    "changelog-close-button",
+    "settings-tooltip",
   ]) {
     els[toCamel(id)] = document.getElementById(id);
   }
@@ -37,6 +42,7 @@ window.addEventListener("DOMContentLoaded", () => {
   els.checkUpdatesButton.addEventListener("click", checkUpdates);
   els.installUpdateButton.addEventListener("click", installUpdate);
   els.requirementsButton.addEventListener("click", installRequirements);
+  els.changelogCloseButton.addEventListener("click", dismissChangelog);
 });
 
 window.addEventListener("pywebviewready", async () => {
@@ -111,6 +117,7 @@ function render() {
   renderSettings();
   renderStatus();
   renderUpdate();
+  renderChangelog();
   updateRuntimeButtons();
 }
 
@@ -192,6 +199,12 @@ function renderField(field) {
   wrapper.className = "field";
   wrapper.dataset.key = field.key;
   wrapper.dataset.type = field.type;
+  if (field.help) {
+    wrapper.dataset.help = field.help;
+    wrapper.addEventListener("mouseenter", showSettingTooltip);
+    wrapper.addEventListener("mousemove", moveSettingTooltip);
+    wrapper.addEventListener("mouseleave", hideSettingTooltip);
+  }
 
   const label = document.createElement("label");
   label.textContent = field.label;
@@ -348,6 +361,12 @@ async function installUpdate() {
   await refreshState();
 }
 
+async function dismissChangelog() {
+  els.changelogOverlay.classList.add("hidden");
+  state.pending_changelog = null;
+  await window.pywebview.api.dismiss_update_changelog();
+}
+
 async function installRequirements() {
   els.requirementsButton.disabled = true;
   appendLogs(["Installing requirements..."]);
@@ -448,6 +467,53 @@ function renderUpdate() {
   els.installUpdateButton.disabled = !(state.update && state.update.available);
 }
 
+function renderChangelog() {
+  const changelog = state.pending_changelog;
+  if (!changelog) {
+    els.changelogOverlay.classList.add("hidden");
+    return;
+  }
+  const version = changelog.version || "new version";
+  els.changelogTitle.textContent = `${changelog.name || "Sidechick"} ${version}`;
+  els.changelogBody.textContent = changelog.body || "No changelog was provided for this release.";
+  els.changelogOverlay.classList.remove("hidden");
+}
+
+function showSettingTooltip(event) {
+  const help = event.currentTarget.dataset.help;
+  if (!help) {
+    return;
+  }
+  els.settingsTooltip.textContent = help;
+  els.settingsTooltip.classList.remove("hidden");
+  moveSettingTooltip(event);
+}
+
+function moveSettingTooltip(event) {
+  if (els.settingsTooltip.classList.contains("hidden")) {
+    return;
+  }
+  const offset = 14;
+  const margin = 10;
+  const rect = els.settingsTooltip.getBoundingClientRect();
+  let left = event.clientX + offset;
+  let top = event.clientY + offset;
+
+  if (left + rect.width + margin > window.innerWidth) {
+    left = event.clientX - rect.width - offset;
+  }
+  if (top + rect.height + margin > window.innerHeight) {
+    top = event.clientY - rect.height - offset;
+  }
+
+  els.settingsTooltip.style.left = `${Math.max(margin, left)}px`;
+  els.settingsTooltip.style.top = `${Math.max(margin, top)}px`;
+}
+
+function hideSettingTooltip() {
+  els.settingsTooltip.classList.add("hidden");
+}
+
 function updateRuntimeButtons() {
   const runtime = processFor(state.selected_script);
   const running = runtime.running;
@@ -492,10 +558,81 @@ function keyBinding(event) {
     Enter: "enter",
     Escape: "esc",
     " ": "space",
+    Spacebar: "space",
     Backspace: "backspace",
     Tab: "tab",
+    ",": "comma",
+    "-": "minus",
+    ".": "period",
+    "/": "slash",
+    "\\": "backslash",
+    ";": "semicolon",
+    "'": "apostrophe",
+    "`": "backtick",
+    "=": "equals",
+    "[": "left bracket",
+    "]": "right bracket",
+    Control: "ctrl",
+    Shift: "shift",
+    Alt: "alt",
+    AltGraph: "alt gr",
+    Meta: "windows",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    ArrowUp: "up",
+    ArrowDown: "down",
+    PageUp: "page up",
+    PageDown: "page down",
+    CapsLock: "caps lock",
+    NumLock: "num lock",
+    ScrollLock: "scroll lock",
+    PrintScreen: "print screen",
+    ContextMenu: "menu",
+    Delete: "delete",
+    Insert: "insert",
+    Home: "home",
+    End: "end",
+    Pause: "pause",
   };
+  const numpad = numpadBinding(event.code);
+  if (numpad) {
+    return numpad;
+  }
+  if (event.key === "Dead") {
+    return deadKeyBinding(event.code);
+  }
   return aliases[event.key] || event.key.toLowerCase();
+}
+
+function numpadBinding(code) {
+  const map = {
+    Numpad0: "num 0",
+    Numpad1: "num 1",
+    Numpad2: "num 2",
+    Numpad3: "num 3",
+    Numpad4: "num 4",
+    Numpad5: "num 5",
+    Numpad6: "num 6",
+    Numpad7: "num 7",
+    Numpad8: "num 8",
+    Numpad9: "num 9",
+    NumpadDecimal: "num .",
+    NumpadDivide: "num /",
+    NumpadMultiply: "num *",
+    NumpadSubtract: "num -",
+    NumpadAdd: "num +",
+    NumpadEnter: "num enter",
+    NumpadEqual: "num =",
+  };
+  return map[code] || "";
+}
+
+function deadKeyBinding(code) {
+  const germanDeadKeys = {
+    Backquote: "^",
+    Equal: "\u00b4",
+  };
+  return germanDeadKeys[code] || "dead";
 }
 
 function bindingList(value) {
@@ -507,7 +644,8 @@ function bindingList(value) {
 }
 
 function normalizeBinding(value) {
-  const raw = String(value || "").trim().toLowerCase().replace(/\s+/g, "");
+  const raw = String(value || "").trim().toLowerCase().replace(/_+/g, " ").replace(/\s+/g, " ");
+  const compact = raw.replace(/\s+/g, "");
   const aliases = {
     left: "mouse:left",
     mouse1: "mouse:left",
@@ -520,11 +658,84 @@ function normalizeBinding(value) {
     mouse4: "mouse:x",
     x2: "mouse:x2",
     mouse5: "mouse:x2",
+    ",": "comma",
+    comma: "comma",
+    "-": "minus",
+    minus: "minus",
+    ".": "period",
+    period: "period",
+    dot: "period",
+    "/": "slash",
+    slash: "slash",
+    "\\": "backslash",
+    backslash: "backslash",
+    ";": "semicolon",
+    semicolon: "semicolon",
+    "'": "apostrophe",
+    apostrophe: "apostrophe",
+    quote: "apostrophe",
+    "`": "backtick",
+    backtick: "backtick",
+    grave: "backtick",
+    "=": "equals",
+    equals: "equals",
+    "[": "left bracket",
+    leftbracket: "left bracket",
+    "]": "right bracket",
+    rightbracket: "right bracket",
+    escape: "esc",
+    control: "ctrl",
+    strg: "ctrl",
+    altgraph: "alt gr",
+    altgr: "alt gr",
+    windows: "windows",
+    win: "windows",
+    meta: "windows",
+    cmd: "windows",
+    command: "windows",
+    pageup: "page up",
+    pagedown: "page down",
+    capslock: "caps lock",
+    numlock: "num lock",
+    scrolllock: "scroll lock",
+    printscreen: "print screen",
+    contextmenu: "menu",
+    arrowleft: "left",
+    arrowright: "right",
+    arrowup: "up",
+    arrowdown: "down",
+    numpad0: "num 0",
+    numpad1: "num 1",
+    numpad2: "num 2",
+    numpad3: "num 3",
+    numpad4: "num 4",
+    numpad5: "num 5",
+    numpad6: "num 6",
+    numpad7: "num 7",
+    numpad8: "num 8",
+    numpad9: "num 9",
+    num0: "num 0",
+    num1: "num 1",
+    num2: "num 2",
+    num3: "num 3",
+    num4: "num 4",
+    num5: "num 5",
+    num6: "num 6",
+    num7: "num 7",
+    num8: "num 8",
+    num9: "num 9",
+    numpaddecimal: "num .",
+    numpaddivide: "num /",
+    numpadmultiply: "num *",
+    numpadsubtract: "num -",
+    numpadadd: "num +",
+    numpadenter: "num enter",
+    numpadequal: "num =",
   };
-  if (!raw || raw === "none" || raw === "off" || raw === "-") {
+  if (!raw || raw === "none" || raw === "off") {
     return "";
   }
-  return aliases[raw] || raw;
+  return aliases[raw] || aliases[compact] || raw;
 }
 
 function getByPath(object, path) {

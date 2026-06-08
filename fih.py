@@ -43,7 +43,7 @@ except ImportError:
 
 pyautogui.PAUSE = 0
 
-CURRENT_CONFIG_VERSION = 3
+CURRENT_CONFIG_VERSION = 4
 FAST_ACTION_GAP = 0.03
 PAUSE_KEY_DEBOUNCE = 0.06
 MOUSE_BUTTON_ALIASES = {
@@ -64,6 +64,233 @@ MOUSE_BUTTON_ALIASES = {
     "mouse:x2": "x2",
     "mouse5": "x2",
 }
+PUNCTUATION_KEY_ALIASES = {
+    ",": "comma",
+    "comma": "comma",
+    "-": "minus",
+    "minus": "minus",
+    ".": "period",
+    "period": "period",
+    "dot": "period",
+    "/": "slash",
+    "slash": "slash",
+    "\\": "backslash",
+    "backslash": "backslash",
+    ";": "semicolon",
+    "semicolon": "semicolon",
+    "'": "apostrophe",
+    "apostrophe": "apostrophe",
+    "quote": "apostrophe",
+    "`": "backtick",
+    "backtick": "backtick",
+    "grave": "backtick",
+    "=": "equals",
+    "equals": "equals",
+    "[": "left bracket",
+    "leftbracket": "left bracket",
+    "left bracket": "left bracket",
+    "]": "right bracket",
+    "rightbracket": "right bracket",
+    "right bracket": "right bracket",
+}
+LEGACY_KEY_NAMES = {
+    "comma": ",",
+    "minus": "-",
+    "period": ".",
+    "slash": "/",
+    "backslash": "\\",
+    "semicolon": ";",
+    "apostrophe": "'",
+    "backtick": "`",
+    "equals": "=",
+    "left bracket": "[",
+    "right bracket": "]",
+}
+KEY_ALIASES = {
+    "escape": "esc",
+    "esc": "esc",
+    "control": "ctrl",
+    "ctrl": "ctrl",
+    "strg": "ctrl",
+    "steuerung": "ctrl",
+    "leftctrl": "ctrl",
+    "rightctrl": "ctrl",
+    "ctrlleft": "ctrl",
+    "ctrlright": "ctrl",
+    "ctrll": "ctrl",
+    "ctrlr": "ctrl",
+    "shift": "shift",
+    "leftshift": "shift",
+    "rightshift": "shift",
+    "shiftleft": "shift",
+    "shiftright": "shift",
+    "shiftl": "shift",
+    "shiftr": "shift",
+    "alt": "alt",
+    "leftalt": "alt",
+    "rightalt": "alt",
+    "altleft": "alt",
+    "altright": "alt",
+    "altl": "alt",
+    "altr": "alt",
+    "altgr": "alt gr",
+    "altgraph": "alt gr",
+    "altgrkey": "alt gr",
+    "cmd": "windows",
+    "command": "windows",
+    "meta": "windows",
+    "super": "windows",
+    "win": "windows",
+    "windows": "windows",
+    "cmdl": "windows",
+    "cmdr": "windows",
+    "space": "space",
+    "spacebar": "space",
+    "enter": "enter",
+    "return": "enter",
+    "backspace": "backspace",
+    "tab": "tab",
+    "delete": "delete",
+    "del": "delete",
+    "insert": "insert",
+    "ins": "insert",
+    "home": "home",
+    "end": "end",
+    "pageup": "page up",
+    "pagedown": "page down",
+    "page up": "page up",
+    "page down": "page down",
+    "capslock": "caps lock",
+    "caps lock": "caps lock",
+    "numlock": "num lock",
+    "num lock": "num lock",
+    "scrolllock": "scroll lock",
+    "scroll lock": "scroll lock",
+    "printscreen": "print screen",
+    "print screen": "print screen",
+    "prtsc": "print screen",
+    "pause": "pause",
+    "break": "pause",
+    "menu": "menu",
+    "contextmenu": "menu",
+    "context menu": "menu",
+    "arrowleft": "left",
+    "arrowright": "right",
+    "arrowup": "up",
+    "arrowdown": "down",
+    "left": "left",
+    "right": "right",
+    "up": "up",
+    "down": "down",
+}
+NUMPAD_ALIASES = {
+    "numpad0": "num 0",
+    "numpad1": "num 1",
+    "numpad2": "num 2",
+    "numpad3": "num 3",
+    "numpad4": "num 4",
+    "numpad5": "num 5",
+    "numpad6": "num 6",
+    "numpad7": "num 7",
+    "numpad8": "num 8",
+    "numpad9": "num 9",
+    "num0": "num 0",
+    "num1": "num 1",
+    "num2": "num 2",
+    "num3": "num 3",
+    "num4": "num 4",
+    "num5": "num 5",
+    "num6": "num 6",
+    "num7": "num 7",
+    "num8": "num 8",
+    "num9": "num 9",
+    "numpaddecimal": "num .",
+    "numpaddivide": "num /",
+    "numpadmultiply": "num *",
+    "numpadsubtract": "num -",
+    "numpadadd": "num +",
+    "numpadenter": "num enter",
+    "numpadequal": "num =",
+    "numdecimal": "num .",
+    "numdivide": "num /",
+    "nummultiply": "num *",
+    "numsubtract": "num -",
+    "numadd": "num +",
+    "numenter": "num enter",
+    "numequal": "num =",
+}
+NUMPAD_VK_ALIASES = {
+    96: "num 0",
+    97: "num 1",
+    98: "num 2",
+    99: "num 3",
+    100: "num 4",
+    101: "num 5",
+    102: "num 6",
+    103: "num 7",
+    104: "num 8",
+    105: "num 9",
+    106: "num *",
+    107: "num +",
+    109: "num -",
+    110: "num .",
+    111: "num /",
+}
+PYNPUT_OUTPUT_KEYS = {
+    "esc": "esc",
+    "ctrl": "ctrl",
+    "shift": "shift",
+    "alt": "alt",
+    "alt gr": "alt_gr",
+    "windows": "cmd",
+    "space": "space",
+    "enter": "enter",
+    "backspace": "backspace",
+    "tab": "tab",
+    "delete": "delete",
+    "insert": "insert",
+    "home": "home",
+    "end": "end",
+    "page up": "page_up",
+    "page down": "page_down",
+    "caps lock": "caps_lock",
+    "num lock": "num_lock",
+    "scroll lock": "scroll_lock",
+    "print screen": "print_screen",
+    "pause": "pause",
+    "menu": "menu",
+    "left": "left",
+    "right": "right",
+    "up": "up",
+    "down": "down",
+    "num enter": "enter",
+}
+PYAUTOGUI_OUTPUT_KEYS = {
+    "page up": "pageup",
+    "page down": "pagedown",
+    "caps lock": "capslock",
+    "num lock": "numlock",
+    "scroll lock": "scrolllock",
+    "print screen": "printscreen",
+    "left bracket": "[",
+    "right bracket": "]",
+    "num 0": "num0",
+    "num 1": "num1",
+    "num 2": "num2",
+    "num 3": "num3",
+    "num 4": "num4",
+    "num 5": "num5",
+    "num 6": "num6",
+    "num 7": "num7",
+    "num 8": "num8",
+    "num 9": "num9",
+    "num .": "decimal",
+    "num /": "divide",
+    "num *": "multiply",
+    "num -": "subtract",
+    "num +": "add",
+    "num enter": "enter",
+}
 
 
 class FishingMode(str, Enum):
@@ -74,11 +301,11 @@ class FishingMode(str, Enum):
 
 @dataclass
 class Hotkeys:
-    stop: str = "f1"
+    stop: list[str] = field(default_factory=lambda: ["f1"])
     pause: list[str] = field(default_factory=lambda: ["enter"])
-    timer_mode: str = "f4"
-    fishing_mode: str = "f6"
-    orb_mode: str = "f7"
+    timer_mode: list[str] = field(default_factory=lambda: ["f4"])
+    fishing_mode: list[str] = field(default_factory=lambda: ["f6"])
+    orb_mode: list[str] = field(default_factory=lambda: ["f7"])
     manual_override_keys: list[str] = field(default_factory=lambda: [str(number) for number in range(1, 10)])
     manual_override_mouse_buttons: list[str] = field(default_factory=lambda: ["mouse:right"])
 
@@ -95,9 +322,9 @@ class Config:
     input_backend: str = "auto"  # auto, pynput, legacy
 
     # Hotbar slots.
-    rod_slot: str = "4"
-    weapon_slot: str = "3"
-    orb_slot: str = "5"
+    rod_slot: list[str] = field(default_factory=lambda: ["4"])
+    weapon_slot: list[str] = field(default_factory=lambda: ["3"])
+    orb_slot: list[str] = field(default_factory=lambda: ["5"])
 
     # Timings.
     poll_interval: float = 0.05
@@ -141,12 +368,55 @@ def merge_defaults(defaults, loaded):
 
 
 def normalize_binding(value) -> str:
-    binding = str(value).strip().lower().replace(" ", "")
-    if not binding or binding in {"none", "off", "-"}:
+    binding = " ".join(str(value).strip().lower().replace("_", " ").split())
+    if not binding or binding in {"none", "off"}:
         return ""
     if binding in MOUSE_BUTTON_ALIASES:
         return f"mouse:{MOUSE_BUTTON_ALIASES[binding]}"
+    compact = binding.replace(" ", "")
+    if binding in PUNCTUATION_KEY_ALIASES:
+        return PUNCTUATION_KEY_ALIASES[binding]
+    if compact in PUNCTUATION_KEY_ALIASES:
+        return PUNCTUATION_KEY_ALIASES[compact]
+    if compact in NUMPAD_ALIASES:
+        return NUMPAD_ALIASES[compact]
+    if compact in KEY_ALIASES:
+        return KEY_ALIASES[compact]
+    if binding in KEY_ALIASES:
+        return KEY_ALIASES[binding]
+    if compact.startswith("f") and compact[1:].isdigit():
+        return compact
     return binding
+
+
+def legacy_key_name(binding: str) -> str:
+    return LEGACY_KEY_NAMES.get(normalize_binding(binding), normalize_binding(binding))
+
+
+def pynput_output_key(binding: str):
+    binding = normalize_binding(binding)
+    if binding.startswith("f") and binding[1:].isdigit():
+        key = getattr(pynput_keyboard.Key, binding, None)
+        if key is not None:
+            return key
+    if binding.startswith("num ") and len(binding) == 5:
+        return pynput_keyboard.KeyCode.from_char(binding[-1])
+    key_name = PYNPUT_OUTPUT_KEYS.get(binding)
+    if key_name:
+        key = getattr(pynput_keyboard.Key, key_name, None)
+        if key is not None:
+            return key
+    char = legacy_key_name(binding)
+    if len(char) == 1:
+        return pynput_keyboard.KeyCode.from_char(char)
+    return binding
+
+
+def pyautogui_key_name(binding: str) -> str:
+    binding = normalize_binding(binding)
+    if binding in LEGACY_KEY_NAMES:
+        return LEGACY_KEY_NAMES[binding]
+    return PYAUTOGUI_OUTPUT_KEYS.get(binding, binding)
 
 
 def binding_list(value) -> list[str]:
@@ -206,18 +476,29 @@ def migrate_config(data: dict) -> dict:
         migrated["hotkeys"] = hotkeys
         migrated["config_version"] = CURRENT_CONFIG_VERSION
 
+    if config_version < 4:
+        hotkeys = migrated.get("hotkeys", {}).copy()
+        for key in ("stop", "pause", "timer_mode", "fishing_mode", "orb_mode"):
+            hotkeys[key] = binding_list(hotkeys.get(key, asdict(Hotkeys()).get(key, [])))
+        migrated["hotkeys"] = hotkeys
+        for key in ("rod_slot", "weapon_slot", "orb_slot"):
+            migrated[key] = binding_list(migrated.get(key, asdict(Config()).get(key, [])))
+        migrated["config_version"] = CURRENT_CONFIG_VERSION
+
     return migrated
 
 
 def config_from_dict(data: dict) -> Config:
     data = migrate_config(data)
     merged = merge_defaults(asdict(Config()), data)
+    for key in ("rod_slot", "weapon_slot", "orb_slot"):
+        merged[key] = binding_list(merged.get(key))
     hotkey_data = merged.pop("hotkeys")
-    hotkey_data["stop"] = first_binding(hotkey_data.get("stop"))
+    hotkey_data["stop"] = binding_list(hotkey_data.get("stop"))
     hotkey_data["pause"] = binding_list(hotkey_data.get("pause"))
-    hotkey_data["timer_mode"] = first_binding(hotkey_data.get("timer_mode"))
-    hotkey_data["fishing_mode"] = first_binding(hotkey_data.get("fishing_mode"))
-    hotkey_data["orb_mode"] = first_binding(hotkey_data.get("orb_mode"))
+    hotkey_data["timer_mode"] = binding_list(hotkey_data.get("timer_mode"))
+    hotkey_data["fishing_mode"] = binding_list(hotkey_data.get("fishing_mode"))
+    hotkey_data["orb_mode"] = binding_list(hotkey_data.get("orb_mode"))
     hotkey_data["manual_override_keys"] = keyboard_bindings(hotkey_data.get("manual_override_keys"))
     hotkey_data["manual_override_mouse_buttons"] = mouse_bindings(
         hotkey_data.get("manual_override_mouse_buttons")
@@ -410,21 +691,29 @@ class InputHooks:
 
     @staticmethod
     def pynput_key_name(key) -> str:
+        vk = getattr(key, "vk", None)
+        if vk in NUMPAD_VK_ALIASES:
+            return NUMPAD_VK_ALIASES[vk]
+
         char = getattr(key, "char", None)
         if char:
-            return char.lower()
+            return normalize_binding(char)
 
         name = getattr(key, "name", None)
-        return name.lower() if name else ""
+        return normalize_binding(name) if name else ""
 
     def start_legacy(self):
         hotkeys = self.helper.cfg.hotkeys
-        self.bind_legacy(hotkeys.stop, self.helper.request_stop)
+        for stop_binding in hotkeys.stop:
+            self.bind_legacy(stop_binding, self.helper.request_stop)
         for pause_binding in hotkeys.pause:
             self.bind_legacy(pause_binding, self.helper.toggle_pause)
-        self.bind_legacy(hotkeys.timer_mode, self.helper.toggle_timer_mode)
-        self.bind_legacy(hotkeys.fishing_mode, self.helper.cycle_mode)
-        self.bind_legacy(hotkeys.orb_mode, self.helper.toggle_orb_mode)
+        for timer_binding in hotkeys.timer_mode:
+            self.bind_legacy(timer_binding, self.helper.toggle_timer_mode)
+        for fishing_binding in hotkeys.fishing_mode:
+            self.bind_legacy(fishing_binding, self.helper.cycle_mode)
+        for orb_binding in hotkeys.orb_mode:
+            self.bind_legacy(orb_binding, self.helper.toggle_orb_mode)
 
         for binding in hotkeys.manual_override_keys + hotkeys.manual_override_mouse_buttons:
             self.bind_legacy(binding, lambda manual_binding=binding: self.helper.manual_override(manual_binding))
@@ -440,7 +729,7 @@ class InputHooks:
             self.mouse_handles.append(handle)
             return
 
-        handle = legacy_keyboard.on_press_key(binding, lambda _: callback())
+        handle = legacy_keyboard.on_press_key(legacy_key_name(binding), lambda _: callback())
         self.hotkey_handles.append(handle)
 
     def stop_legacy(self):
@@ -495,13 +784,15 @@ class InputActions:
         return "pyautogui"
 
     def press_key(self, key: str):
+        key = normalize_binding(key)
         if self.backend == "legacy":
-            legacy_keyboard.press_and_release(key)
+            legacy_keyboard.press_and_release(legacy_key_name(key))
         elif self.backend == "pynput":
-            self.keyboard_controller.press(key)
-            self.keyboard_controller.release(key)
+            output_key = pynput_output_key(key)
+            self.keyboard_controller.press(output_key)
+            self.keyboard_controller.release(output_key)
         else:
-            pyautogui.press(key)
+            pyautogui.press(pyautogui_key_name(key))
 
     def right_click(self):
         if self.backend == "legacy":
@@ -510,6 +801,24 @@ class InputActions:
             self.mouse_controller.click(pynput_mouse.Button.right, 1)
         else:
             pyautogui.rightClick()
+
+    def click_mouse_button(self, button: str):
+        button = mouse_button_from_binding(button)
+        if self.backend == "legacy":
+            legacy_mouse.click(button)
+        elif self.backend == "pynput":
+            pynput_button = getattr(pynput_mouse.Button, button, None)
+            if pynput_button is not None:
+                self.mouse_controller.click(pynput_button, 1)
+        else:
+            pyautogui.click(button=button)
+
+    def press_binding(self, binding: str):
+        binding = normalize_binding(binding)
+        if is_mouse_binding(binding):
+            self.click_mouse_button(binding)
+        else:
+            self.press_key(binding)
 
 
 class FishingHelper:
@@ -534,8 +843,7 @@ class FishingHelper:
         self.last_hotkey_times = {}
         self.last_manual_input_time = 0.0
         self.ignore_manual_until = 0.0
-        self.script_key_events_to_ignore = {}
-        self.script_right_clicks_to_ignore = 0
+        self.script_binding_events_to_ignore = {}
 
         self.last_cast_time = 0.0
         self.last_orb_time = time.monotonic()
@@ -571,9 +879,13 @@ class FishingHelper:
 
     def print_controls(self):
         hotkeys = self.cfg.hotkeys
+        stop_keys = ", ".join(hotkeys.stop)
         manual_keys = ", ".join(hotkeys.manual_override_keys)
         manual_buttons = ", ".join(hotkeys.manual_override_mouse_buttons)
         pause_keys = ", ".join(hotkeys.pause)
+        timer_keys = ", ".join(hotkeys.timer_mode)
+        fishing_keys = ", ".join(hotkeys.fishing_mode)
+        orb_keys = ", ".join(hotkeys.orb_mode)
 
         print("Skript gestartet.")
         print(f"Python: {sys.executable}")
@@ -588,8 +900,8 @@ class FishingHelper:
             f"script_input_ignore={self.cfg.script_input_ignore:.3f}s"
         )
         print(
-            f"[{hotkeys.stop or 'none'}] Beenden | [{pause_keys or 'none'}] Pause/Fortsetzen | "
-            f"[{hotkeys.timer_mode}] Timer | [{hotkeys.fishing_mode}] Modus | [{hotkeys.orb_mode}] Orb"
+            f"[{stop_keys or 'none'}] Beenden | [{pause_keys or 'none'}] Pause/Fortsetzen | "
+            f"[{timer_keys or 'none'}] Timer | [{fishing_keys or 'none'}] Modus | [{orb_keys or 'none'}] Orb"
         )
         if not self.cfg.hotkeys_enabled:
             print("Script-Hotkeys sind deaktiviert. Steuerung laeuft ueber Sidechick.")
@@ -705,12 +1017,6 @@ class FishingHelper:
         with self.lock:
             now = time.monotonic()
             source = normalize_binding(source)
-            if source == "mouse:right" and self.script_right_clicks_to_ignore > 0 and now < self.ignore_manual_until:
-                self.script_right_clicks_to_ignore -= 1
-                return
-            if now >= self.ignore_manual_until:
-                self.script_right_clicks_to_ignore = 0
-
             if self.should_ignore_manual_input(now):
                 return
 
@@ -730,25 +1036,25 @@ class FishingHelper:
             return
 
         with self.lock:
-            ignored_count = self.script_key_events_to_ignore.get(key, 0)
+            ignored_count = self.script_binding_events_to_ignore.get(key, 0)
             if ignored_count > 0 and time.monotonic() < self.ignore_manual_until:
                 if ignored_count == 1:
-                    del self.script_key_events_to_ignore[key]
+                    del self.script_binding_events_to_ignore[key]
                 else:
-                    self.script_key_events_to_ignore[key] = ignored_count - 1
+                    self.script_binding_events_to_ignore[key] = ignored_count - 1
                 return
             if time.monotonic() >= self.ignore_manual_until:
-                self.script_key_events_to_ignore.pop(key, None)
+                self.script_binding_events_to_ignore.pop(key, None)
 
-        if key == normalize_binding(hotkeys.stop):
+        if key in hotkeys.stop:
             self.request_stop()
         elif key in hotkeys.pause:
             self.toggle_pause()
-        elif key == normalize_binding(hotkeys.timer_mode):
+        elif key in hotkeys.timer_mode:
             self.toggle_timer_mode()
-        elif key == normalize_binding(hotkeys.fishing_mode):
+        elif key in hotkeys.fishing_mode:
             self.cycle_mode()
-        elif key == normalize_binding(hotkeys.orb_mode):
+        elif key in hotkeys.orb_mode:
             self.toggle_orb_mode()
         elif key in hotkeys.manual_override_keys or key in hotkeys.manual_override_mouse_buttons:
             self.manual_override(key)
@@ -844,20 +1150,22 @@ class FishingHelper:
             print("[ORB] Orb vorgemerkt: wird vor dem naechsten Auswerfen gesetzt")
             self.print_mode_status()
 
-    def press_slot(self, slot: str):
-        self.run_script_input(lambda: self.input_actions.press_key(slot), key=slot)
+    def press_slot(self, slot):
+        binding = first_binding(slot)
+        if not binding:
+            return
+        self.run_script_input(lambda: self.input_actions.press_binding(binding), binding=binding)
 
     def right_click(self):
-        self.run_script_input(self.input_actions.right_click, right_click=True)
+        self.run_script_input(self.input_actions.right_click, binding="mouse:right")
 
-    def run_script_input(self, action: Callable[[], None], key: str | None = None, right_click: bool = False):
+    def run_script_input(self, action: Callable[[], None], binding: str | None = None):
         with self.lock:
-            if key is not None:
-                key = key.lower()
-                self.script_key_events_to_ignore[key] = self.script_key_events_to_ignore.get(key, 0) + 1
-
-            if right_click:
-                self.script_right_clicks_to_ignore += 1
+            if binding is not None:
+                binding = normalize_binding(binding)
+                self.script_binding_events_to_ignore[binding] = (
+                    self.script_binding_events_to_ignore.get(binding, 0) + 1
+                )
 
             self.ignore_manual_until = time.monotonic() + self.cfg.script_input_ignore
             action()

@@ -25,6 +25,7 @@ from .process_runner import ProcessRunner
 
 RELEASES_API_URL = f"https://api.github.com/repos/{UPDATE_REPO}/releases?per_page=20"
 REQUIREMENTS_PATH = APP_DIR / "requirements.txt"
+PENDING_CHANGELOG_PATH = CONFIG_DIR / "pending_changelog.json"
 UPDATE_KEEP_PARTS = {".git", "__pycache__", "configs", "runtime"}
 UPDATE_KEEP_FILES = {
     "fih_config.json",
@@ -58,6 +59,7 @@ class SidechickAPI:
             "selected_config": load_script_config(selected),
             "process": process_state,
             "update": self.update_summary(),
+            "pending_changelog": read_pending_changelog(),
         }
 
     def select_script(self, script_id):
@@ -169,7 +171,15 @@ class SidechickAPI:
         except Exception as exc:
             return {"ok": False, "message": str(exc)}
 
+        write_pending_changelog(self.latest_release, copied)
         return {"ok": True, "message": f"Installed {self.latest_release['tag_name']} ({copied} files). Restart Sidechick."}
+
+    def dismiss_update_changelog(self):
+        try:
+            PENDING_CHANGELOG_PATH.unlink(missing_ok=True)
+        except OSError as exc:
+            return {"ok": False, "message": str(exc)}
+        return {"ok": True}
 
     def update_summary(self):
         if not self.latest_release:
@@ -236,11 +246,40 @@ def runtime_command_for(script_id, key, value):
     if script_id == "superpairs":
         commands = {
             "click_cooldown": {"name": "set_click_cooldown", "payload": {"seconds": float(value)}},
+            "pre_click_delay": {"name": "set_pre_click_delay", "payload": {"seconds": float(value)}},
             "scan_interval": {"name": "set_scan_interval", "payload": {"seconds": float(value)}},
         }
         return commands.get(key)
 
     return None
+
+
+def read_pending_changelog():
+    if not PENDING_CHANGELOG_PATH.exists():
+        return None
+    try:
+        changelog = json.loads(PENDING_CHANGELOG_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    version = str(changelog.get("version") or "")
+    if version and version_is_newer(version, APP_VERSION):
+        return None
+    return changelog
+
+
+def write_pending_changelog(release, copied_files):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    body = str(release.get("body") or "").strip()
+    if not body:
+        body = "No changelog was provided for this release."
+    payload = {
+        "version": release.get("tag_name", "unknown"),
+        "name": release.get("name") or release.get("tag_name", "Update"),
+        "body": body,
+        "url": release.get("html_url", ""),
+        "copied_files": copied_files,
+    }
+    PENDING_CHANGELOG_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
 def fetch_latest_release():
