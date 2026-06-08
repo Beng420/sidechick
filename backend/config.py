@@ -7,7 +7,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = APP_DIR / "configs"
 APP_CONFIG_PATH = CONFIG_DIR / "sidechick.json"
 LEGACY_FIH_CONFIG_PATH = APP_DIR / "fih_config.json"
-APP_VERSION = "v1.8.0"
+APP_VERSION = "v1.8.1"
 UPDATE_REPO = "Beng420/sidechick"
 
 

@@ -215,6 +215,20 @@ body.sidebar-collapsed .sidebar-foot {
   align-items: center;
 }
 
+.update-action {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}
+
+.update-status {
+  min-height: 14px;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .script-tabs {
   display: flex;
   gap: 8px;

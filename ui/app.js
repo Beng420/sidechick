@@ -14,6 +14,7 @@ window.addEventListener("DOMContentLoaded", () => {
     "app-subtitle",
     "log-output",
     "update-line",
+    "update-status",
     "start-button",
     "pause-button",
     "stop-button",
@@ -39,7 +40,7 @@ window.addEventListener("DOMContentLoaded", () => {
   els.stopButton.addEventListener("click", stopSelectedScript);
   els.saveButton.addEventListener("click", saveSelectedConfig);
   els.reloadButton.addEventListener("click", refreshState);
-  els.checkUpdatesButton.addEventListener("click", checkUpdates);
+  els.checkUpdatesButton.addEventListener("click", () => checkUpdates());
   els.installUpdateButton.addEventListener("click", installUpdate);
   els.requirementsButton.addEventListener("click", installRequirements);
   els.changelogCloseButton.addEventListener("click", dismissChangelog);
@@ -47,6 +48,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
 window.addEventListener("pywebviewready", async () => {
   await refreshState();
+  await checkUpdates({ automatic: true });
   setInterval(pollRuntime, 450);
 });
 
@@ -340,13 +342,19 @@ async function setRuntimeOption(key, value) {
   renderStatus();
 }
 
-async function checkUpdates() {
+async function checkUpdates(options = {}) {
+  const automatic = options.automatic === true;
   els.checkUpdatesButton.disabled = true;
   els.updateLine.textContent = "Checking updates...";
+  if (!automatic) {
+    els.updateStatus.textContent = "";
+  }
   const result = await window.pywebview.api.check_updates();
   if (!result.ok) {
     els.updateLine.textContent = result.message;
-    appendLogs([`Update check failed: ${result.message}`]);
+    if (!automatic) {
+      appendLogs([`Update check failed: ${result.message}`]);
+    }
   } else {
     state.update = result.update;
     renderUpdate();
@@ -465,6 +473,7 @@ function boolStatus(value) {
 function renderUpdate() {
   els.updateLine.textContent = state.update ? state.update.message : "Updates not checked.";
   els.installUpdateButton.disabled = !(state.update && state.update.available);
+  els.updateStatus.textContent = state.update && state.update.available ? "Update available!" : "";
 }
 
 function renderChangelog() {

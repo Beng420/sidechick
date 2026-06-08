@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.8.1
+
+- Added automatic update checks when Sidechick starts.
+- Added a red `Update available!` indicator next to the Update button when a newer release is found.
+- Kept automatic update checks quiet in the log unless the user manually runs the check and it fails.
+
 ## v1.8.0
 
 - Added mouse-following setting tooltips for every FIh and Superpairs option.
