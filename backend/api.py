@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -115,6 +117,32 @@ class SidechickAPI:
             self.runner.send_command(script_id, command["name"], **command.get("payload", {}))
 
         return {"ok": True, "config": config, "process": self.runner.poll(script_id)}
+
+    def find_fih_region(self, config):
+        config = save_script_config("fih", config)
+
+        try:
+            click_x, click_y = wait_for_screen_click(20.0)
+            found = scan_for_target_color(config, click_x, click_y, radius=30, timeout=20.0)
+        except Exception as exc:
+            return {"ok": False, "message": str(exc), "config": config}
+
+        if not found:
+            return {
+                "ok": False,
+                "message": "No target color found within 30px of the clicked point in 20 seconds.",
+                "config": config,
+            }
+
+        left, top = found
+        config["region"][0] = int(left)
+        config["region"][1] = int(top)
+        config = save_script_config("fih", config)
+        return {
+            "ok": True,
+            "message": f"Region top-left saved at ({left}, {top}).",
+            "config": config,
+        }
 
     def drain_logs(self, script_id=None):
         script_id = self.resolve_script_id(script_id)
@@ -232,6 +260,94 @@ def set_by_path(data, path, value):
     for part in parts[:-1]:
         current = current[part]
     current[parts[-1]] = value
+
+
+def wait_for_screen_click(timeout):
+    try:
+        from pynput import mouse as pynput_mouse
+    except ImportError as exc:
+        raise RuntimeError("pynput is required for coordinate search. Install requirements first.") from exc
+
+    clicked = threading.Event()
+    position = {"x": None, "y": None}
+
+    def on_click(x, y, _button, pressed):
+        if pressed:
+            position["x"] = int(x)
+            position["y"] = int(y)
+            clicked.set()
+            return False
+        return None
+
+    listener = pynput_mouse.Listener(on_click=on_click)
+    listener.start()
+    try:
+        if not clicked.wait(timeout):
+            raise RuntimeError("Coordinate search timed out while waiting for a click.")
+    finally:
+        listener.stop()
+
+    return position["x"], position["y"]
+
+
+def scan_for_target_color(config, click_x, click_y, radius, timeout):
+    try:
+        import mss
+    except ImportError as exc:
+        raise RuntimeError("mss is required for coordinate search. Install requirements first.") from exc
+
+    target = tuple(int(value) for value in config.get("target_rgb", [252, 84, 84]))
+    tolerance = float(config.get("tolerance", 20.0))
+    tolerance_squared = tolerance * tolerance
+    deadline = time.monotonic() + timeout
+
+    with mss.mss() as sct:
+        virtual = sct.monitors[0]
+        virtual_left = int(virtual["left"])
+        virtual_top = int(virtual["top"])
+        virtual_right = virtual_left + int(virtual["width"])
+        virtual_bottom = virtual_top + int(virtual["height"])
+
+        left = max(virtual_left, int(click_x) - radius)
+        top = max(virtual_top, int(click_y) - radius)
+        right = min(virtual_right, int(click_x) + radius + 1)
+        bottom = min(virtual_bottom, int(click_y) + radius + 1)
+        if right <= left or bottom <= top:
+            raise RuntimeError("Clicked point is outside the captured screen area.")
+
+        monitor = {"left": left, "top": top, "width": right - left, "height": bottom - top}
+
+        while time.monotonic() < deadline:
+            frame = sct.grab(monitor)
+            raw = frame.raw
+            stride = frame.width * 4
+            min_x = None
+            min_y = None
+
+            for y in range(frame.height):
+                row = y * stride
+                for x in range(frame.width):
+                    index = row + x * 4
+                    b = raw[index]
+                    g = raw[index + 1]
+                    r = raw[index + 2]
+                    diff = (
+                        (r - target[0]) * (r - target[0])
+                        + (g - target[1]) * (g - target[1])
+                        + (b - target[2]) * (b - target[2])
+                    )
+                    if diff <= tolerance_squared:
+                        if min_x is None or x < min_x:
+                            min_x = x
+                        if min_y is None or y < min_y:
+                            min_y = y
+
+            if min_x is not None and min_y is not None:
+                return left + min_x, top + min_y
+
+            time.sleep(0.05)
+
+    return None
 
 
 def runtime_command_for(script_id, key, value):

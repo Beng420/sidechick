@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.8.2
+
+- Added coordinate search for FIh region calibration.
+- Changed the default FIh action gap to `0.10`.
+- Changed old FIh configs that still used the previous default action gap to the new default.
+
 ## v1.8.1
 
 - Added automatic update checks when Sidechick starts.

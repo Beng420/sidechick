@@ -408,6 +408,11 @@ body.sidebar-collapsed .sidebar-foot {
   gap: 6px;
 }
 
+.action-button {
+  width: max-content;
+  min-width: 96px;
+}
+
 .update-line {
   border: 1px solid var(--line);
   border-radius: 6px;

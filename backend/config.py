@@ -7,7 +7,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = APP_DIR / "configs"
 APP_CONFIG_PATH = CONFIG_DIR / "sidechick.json"
 LEGACY_FIH_CONFIG_PATH = APP_DIR / "fih_config.json"
-APP_VERSION = "v1.8.1"
+APP_VERSION = "v1.8.2"
 UPDATE_REPO = "Beng420/sidechick"
 
 
@@ -19,7 +19,7 @@ APP_DEFAULT_CONFIG = {
 
 
 FIH_DEFAULT_CONFIG = {
-    "config_version": 4,
+    "config_version": 5,
     "region": [1519, 724, 17, 50],
     "target_rgb": [252, 84, 84],
     "tolerance": 20.0,
@@ -30,7 +30,7 @@ FIH_DEFAULT_CONFIG = {
     "orb_slot": ["5"],
     "poll_interval": 0.05,
     "scan_interval": 0.12,
-    "action_gap": 0.03,
+    "action_gap": 0.10,
     "post_cycle_gap": 0.5,
     "min_wait_time": 10.0,
     "key_debounce": 0.25,
@@ -106,6 +106,7 @@ SCRIPT_DEFINITIONS = {
                     {"key": "target_rgb.1", "label": "Target G", "type": "int"},
                     {"key": "target_rgb.2", "label": "Target B", "type": "int"},
                     {"key": "tolerance", "label": "Tolerance", "type": "float"},
+                    {"key": "find_region", "label": "Coordinate search", "type": "action", "action": "find_fih_region"},
                 ],
             },
             {
@@ -203,6 +204,7 @@ SETTING_HELP = {
         "target_rgb.1": "Gruenwert der Bissfarbe. Zusammen mit Rot und Blau bildet er die Zielfarbe fuer die Erkennung.",
         "target_rgb.2": "Blauwert der Bissfarbe. Zusammen mit Rot und Gruen bildet er die Zielfarbe fuer die Erkennung.",
         "tolerance": "Erlaubte Abweichung von der Zielfarbe. Hoeher erkennt mehr Varianten, kann aber auch falsche Treffer verursachen.",
+        "find_region": "Startet eine Kalibrierung fuer die Region-Koordinaten. Klicke danach auf den Bildschirm; Sidechick sucht 20 Sekunden lang im 30px-Umkreis nach der Zielfarbe und speichert die obere linke Fundstelle.",
         "scan_interval": "Zeit zwischen zwei Farbpruefungen, solange kein Ablauf laeuft. Niedriger reagiert schneller, braucht aber mehr CPU.",
         "action_gap": "Pause zwischen einzelnen Aktionen im FIh-Ablauf, zum Beispiel Slot wechseln und Rechtsklick. Erhoehe den Wert, wenn das Spiel Eingaben verschluckt.",
         "post_cycle_gap": "Wartezeit nach dem letzten Auswerfen, bevor FIh wieder scannt. Hilft gegen doppelte Ablaufe direkt nach einem Cast.",
@@ -329,6 +331,9 @@ def binding_list(value):
 
 def normalize_script_config(script_id, config):
     if script_id == "fih":
+        config_version = int(config.get("config_version", 1))
+        if config_version < 5 and float(config.get("action_gap", 0.10)) == 0.03:
+            config["action_gap"] = FIH_DEFAULT_CONFIG["action_gap"]
         config["config_version"] = FIH_DEFAULT_CONFIG["config_version"]
         for key in ("rod_slot", "weapon_slot", "orb_slot"):
             config[key] = binding_list(config.get(key))

@@ -43,8 +43,8 @@ except ImportError:
 
 pyautogui.PAUSE = 0
 
-CURRENT_CONFIG_VERSION = 4
-FAST_ACTION_GAP = 0.03
+CURRENT_CONFIG_VERSION = 5
+FAST_ACTION_GAP = 0.10
 PAUSE_KEY_DEBOUNCE = 0.06
 MOUSE_BUTTON_ALIASES = {
     "left": "left",
@@ -483,6 +483,11 @@ def migrate_config(data: dict) -> dict:
         migrated["hotkeys"] = hotkeys
         for key in ("rod_slot", "weapon_slot", "orb_slot"):
             migrated[key] = binding_list(migrated.get(key, asdict(Config()).get(key, [])))
+        migrated["config_version"] = CURRENT_CONFIG_VERSION
+
+    if config_version < 5:
+        if float(migrated.get("action_gap", FAST_ACTION_GAP)) == 0.03:
+            migrated["action_gap"] = FAST_ACTION_GAP
         migrated["config_version"] = CURRENT_CONFIG_VERSION
 
     return migrated

@@ -234,6 +234,14 @@ function renderField(field) {
   } else if (field.type === "json") {
     control = document.createElement("textarea");
     control.value = JSON.stringify(value, null, 2);
+  } else if (field.type === "action") {
+    control = document.createElement("button");
+    control.type = "button";
+    control.className = "secondary action-button";
+    control.textContent = "Start";
+    if (field.action === "find_fih_region") {
+      control.addEventListener("click", findFihRegion);
+    }
   } else if (field.type === "binding" || field.type === "bindings") {
     const row = document.createElement("div");
     row.className = "binding-row";
@@ -263,6 +271,9 @@ function collectConfig() {
   for (const field of els.settingsForm.querySelectorAll(".field")) {
     const key = field.dataset.key;
     const type = field.dataset.type;
+    if (type === "action") {
+      continue;
+    }
     const control = field.querySelector("input, select, textarea");
     let value = control.value;
 
@@ -340,6 +351,24 @@ async function setRuntimeOption(key, value) {
   state.processes = result.process.processes || state.processes || {};
   renderSettings();
   renderStatus();
+}
+
+async function findFihRegion() {
+  let config;
+  try {
+    config = collectConfig();
+  } catch (_error) {
+    return;
+  }
+
+  appendLogs(["Coordinate search started. Click near the target color on your screen."]);
+  const result = await window.pywebview.api.find_fih_region(config);
+  appendLogs([result.message]);
+  if (result.config) {
+    state.selected_config = result.config;
+    renderSettings();
+    renderStatus();
+  }
 }
 
 async function checkUpdates(options = {}) {
