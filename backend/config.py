@@ -7,7 +7,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = APP_DIR / "configs"
 APP_CONFIG_PATH = CONFIG_DIR / "sidechick.json"
 LEGACY_FIH_CONFIG_PATH = APP_DIR / "fih_config.json"
-APP_VERSION = "v1.8.8"
+APP_VERSION = "v1.8.10"
 UPDATE_REPO = "Beng420/sidechick"
 
 
@@ -98,8 +98,8 @@ SCRIPT_DEFINITIONS = {
             {
                 "title": "Detection",
                 "fields": [
-                    {"key": "region.0", "label": "Region left", "type": "int"},
-                    {"key": "region.1", "label": "Region top", "type": "int"},
+                    {"key": "region.0", "label": "Region X", "type": "int"},
+                    {"key": "region.1", "label": "Region Y", "type": "int"},
                     {"key": "region.2", "label": "Region width", "type": "int"},
                     {"key": "region.3", "label": "Region height", "type": "int"},
                     {"key": "target_rgb.0", "label": "Target R", "type": "int"},
@@ -196,15 +196,15 @@ SETTING_HELP = {
         "timer_mode_enabled": "Wenn aktiv, wartet FIh mindestens die eingestellte Zeit, bevor ein neuer Ablauf startet. Das verhindert zu schnelle Wiederholungen bei Timer-Spielweisen.",
         "orb_mode_enabled": "Wenn aktiv, plant FIh regelmaessig einen Orb ein und setzt ihn im naechsten passenden Ablauf. Orb Pending zeigt, ob gerade ein Orb vorgemerkt ist.",
         "hotkeys_enabled": "Schaltet die Hotkeys dieses Scripts ein oder aus. Der Launcher deaktiviert andere Script-Hotkeys automatisch, wenn du ein anderes Script auswaehlst.",
-        "region.0": "Linke X-Koordinate des kleinen Bildschirmbereichs, in dem FIh nach der Bissfarbe sucht. Verschiebe sie, wenn die Erkennung links oder rechts daneben liegt.",
-        "region.1": "Obere Y-Koordinate des Suchbereichs fuer die Bissfarbe. Verschiebe sie, wenn die rote Anzeige hoeher oder tiefer sitzt.",
-        "region.2": "Breite des Suchbereichs in Pixeln. Groesser ist toleranter, aber kann eher fremde Farben mitnehmen.",
-        "region.3": "Hoehe des Suchbereichs in Pixeln. Groesser hilft bei schwankender Anzeige, kleiner ist praeziser.",
+        "region.0": "X-Koordinate der oberen linken Ecke des Suchbereichs. FIh beginnt hier mit dem Scannen nach der Bissfarbe.",
+        "region.1": "Y-Koordinate der oberen linken Ecke des Suchbereichs. FIh beginnt hier mit dem Scannen nach der Bissfarbe.",
+        "region.2": "Breite des Suchbereichs in Pixeln. Die Koordinatensuche kann diesen Wert automatisch an die erkannte rote Flaeche anpassen.",
+        "region.3": "Hoehe des Suchbereichs in Pixeln. Die Koordinatensuche kann diesen Wert automatisch an die erkannte rote Flaeche anpassen.",
         "target_rgb.0": "Rotwert der Farbe, die als Biss erkannt wird. Normalerweise muss dieser Wert nur angepasst werden, wenn dein Spiel/Shader anders aussieht.",
         "target_rgb.1": "Gruenwert der Bissfarbe. Zusammen mit Rot und Blau bildet er die Zielfarbe fuer die Erkennung.",
         "target_rgb.2": "Blauwert der Bissfarbe. Zusammen mit Rot und Gruen bildet er die Zielfarbe fuer die Erkennung.",
         "tolerance": "Erlaubte Abweichung von der Zielfarbe. Hoeher erkennt mehr Varianten, kann aber auch falsche Treffer verursachen.",
-        "find_region": "Startet eine Kalibrierung fuer die Region-Koordinaten. Jeder Linksklick setzt die markierte Position neu; mit Escape oder Cancel kannst du die Suche abbrechen.",
+        "find_region": "Startet eine Kalibrierung fuer Region, Groesse und rote Zielfarbe. Gelbe Overlays werden ignoriert; mit Escape oder Cancel kannst du abbrechen.",
         "scan_interval": "Zeit zwischen zwei Farbpruefungen, solange kein Ablauf laeuft. Niedriger reagiert schneller, braucht aber mehr CPU.",
         "action_gap": "Pause zwischen einzelnen Aktionen im FIh-Ablauf, zum Beispiel Slot wechseln und Rechtsklick. Erhoehe den Wert, wenn das Spiel Eingaben verschluckt.",
         "post_cycle_gap": "Wartezeit nach dem letzten Auswerfen, bevor FIh wieder scannt. Hilft gegen doppelte Ablaufe direkt nach einem Cast.",

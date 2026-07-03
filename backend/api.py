@@ -25,7 +25,7 @@ from .config import (
 from .process_runner import ProcessRunner
 
 
-RELEASES_API_URL = f"https://api.github.com/repos/{UPDATE_REPO}/releases?per_page=20"
+RELEASES_API_URL = f"https://api.github.com/repos/{UPDATE_REPO}/releases?per_page=50"
 REQUIREMENTS_PATH = APP_DIR / "requirements.txt"
 PENDING_CHANGELOG_PATH = CONFIG_DIR / "pending_changelog.json"
 UPDATE_KEEP_PARTS = {".git", "__pycache__", "configs", "runtime"}
@@ -154,17 +154,27 @@ class SidechickAPI:
             marked_text = f"marked position ({marked[0]}, {marked[1]})" if marked else "a clicked position"
             return {
                 "ok": False,
-                "message": f"No target color found within 30px of {marked_text} in 20 seconds.",
+                "message": f"No red bite overlay found within 30px of {marked_text} in 20 seconds.",
                 "config": config,
             }
 
-        left, top = found
-        config["region"][0] = int(left)
-        config["region"][1] = int(top)
+        config["region"] = [
+            int(found["left"]),
+            int(found["top"]),
+            int(found["width"]),
+            int(found["height"]),
+        ]
+        if found.get("target_rgb"):
+            config["target_rgb"] = [int(value) for value in found["target_rgb"]]
         config = save_script_config("fih", config)
+        target_text = f" target RGB {config['target_rgb']}" if found.get("target_rgb") else ""
         return {
             "ok": True,
-            "message": f"Region top-left saved at ({left}, {top}).",
+            "message": (
+                f"Region saved at ({config['region'][0]}, {config['region'][1]}) "
+                f"with size {config['region'][2]}x{config['region'][3]} via {found['source']}."
+                f"{target_text}"
+            ),
             "config": config,
         }
 
@@ -213,7 +223,9 @@ class SidechickAPI:
         if not version_is_newer(self.latest_release["tag_name"], APP_VERSION):
             return {"ok": False, "message": "No newer release available."}
 
+        changelog_body = None
         try:
+            changelog_body = build_update_changelog(APP_VERSION, self.latest_release["tag_name"]) or None
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmp_path = Path(tmpdir)
                 zip_path = tmp_path / "release.zip"
@@ -227,7 +239,7 @@ class SidechickAPI:
         except Exception as exc:
             return {"ok": False, "message": str(exc)}
 
-        write_pending_changelog(self.latest_release, copied)
+        write_pending_changelog(self.latest_release, copied, changelog_body)
         return {"ok": True, "message": f"Installed {self.latest_release['tag_name']} ({copied} files). Restart Sidechick."}
 
     def dismiss_update_changelog(self):
@@ -308,7 +320,7 @@ def find_target_with_click_updates(config, radius, timeout, cancel_event=None):
         cancel_event = threading.Event()
 
     lock = threading.Lock()
-    latest = {"x": None, "y": None, "deadline": None}
+    latest = {"x": None, "y": None, "deadline": None, "baseline": None}
     first_click_deadline = time.monotonic() + timeout
     marker = CoordinateMarkerProcess(radius=radius)
 
@@ -318,6 +330,7 @@ def find_target_with_click_updates(config, radius, timeout, cancel_event=None):
                 latest["x"] = int(x)
                 latest["y"] = int(y)
                 latest["deadline"] = time.monotonic() + timeout
+                latest["baseline"] = None
             marker.show(int(x), int(y))
         return None
 
@@ -346,6 +359,7 @@ def find_target_with_click_updates(config, radius, timeout, cancel_event=None):
                     x = latest["x"]
                     y = latest["y"]
                     deadline = latest["deadline"]
+                    baseline = latest["baseline"]
 
                 now = time.monotonic()
                 if x is None or y is None:
@@ -357,7 +371,11 @@ def find_target_with_click_updates(config, radius, timeout, cancel_event=None):
                 if now >= deadline:
                     return None, (x, y), False
 
-                found = scan_once_for_target_color(sct, config, x, y, radius)
+                found, captured = scan_once_for_target_color(sct, config, x, y, radius, baseline)
+                if baseline is None:
+                    with lock:
+                        if latest["x"] == x and latest["y"] == y and latest["baseline"] is None:
+                            latest["baseline"] = captured
                 if found:
                     return found, (x, y), False
 
@@ -460,10 +478,14 @@ def monitor_for_point(monitors, x, y):
     return None
 
 
-def scan_once_for_target_color(sct, config, click_x, click_y, radius):
+def scan_once_for_target_color(sct, config, click_x, click_y, radius, baseline=None):
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError("numpy is required for coordinate search. Install requirements first.") from exc
+
     target = tuple(int(value) for value in config.get("target_rgb", [252, 84, 84]))
     tolerance = float(config.get("tolerance", 20.0))
-    tolerance_squared = tolerance * tolerance
 
     virtual = sct.monitors[0]
     virtual_left = int(virtual["left"])
@@ -480,33 +502,131 @@ def scan_once_for_target_color(sct, config, click_x, click_y, radius):
 
     monitor = {"left": left, "top": top, "width": right - left, "height": bottom - top}
     frame = sct.grab(monitor)
-    raw = frame.raw
-    stride = frame.width * 4
-    min_x = None
-    min_y = None
+    pixels = np.asarray(frame, dtype=np.float32)[:, :, [2, 1, 0]]
+    result = find_calibration_region(pixels, left, top, config, target, tolerance, baseline)
+    return result, pixels
 
-    for y in range(frame.height):
-        row = y * stride
-        for x in range(frame.width):
-            index = row + x * 4
-            b = raw[index]
-            g = raw[index + 1]
-            r = raw[index + 2]
-            diff = (
-                (r - target[0]) * (r - target[0])
-                + (g - target[1]) * (g - target[1])
-                + (b - target[2]) * (b - target[2])
-            )
-            if diff <= tolerance_squared:
-                if min_x is None or x < min_x:
-                    min_x = x
-                if min_y is None or y < min_y:
-                    min_y = y
 
-    if min_x is not None and min_y is not None:
-        return left + min_x, top + min_y
+def find_calibration_region(pixels, screen_left, screen_top, config, target, tolerance, baseline):
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError("numpy is required for coordinate search. Install requirements first.") from exc
+
+    current_width = max(3, int(config.get("region", [0, 0, 17, 50])[2]))
+    current_height = max(3, int(config.get("region", [0, 0, 17, 50])[3]))
+    target_array = np.array(target, dtype=np.float32)
+    diff = pixels - target_array
+    distance_squared = np.sum(diff * diff, axis=2)
+    configured_mask = distance_squared <= (tolerance * tolerance)
+
+    red_mask = red_overlay_mask(pixels)
+    dynamic_red_mask = np.zeros(red_mask.shape, dtype=bool)
+    if baseline is not None and baseline.shape == pixels.shape:
+        delta = pixels - baseline
+        changed_mask = np.sum(delta * delta, axis=2) >= (45.0 * 45.0)
+        dynamic_red_mask = red_mask & changed_mask
+
+    choices = [
+        ("red overlay color change", dynamic_red_mask, 8, True),
+        ("configured target color", configured_mask, 1, False),
+        ("red overlay color", red_mask, 8, True),
+    ]
+
+    for source, mask, minimum_pixels, update_target in choices:
+        component = largest_component(mask)
+        if component is None or component["count"] < minimum_pixels:
+            continue
+
+        min_x, min_y, max_x, max_y = component["bbox"]
+        if component["count"] < 4 and source == "configured target color":
+            width = current_width
+            height = current_height
+        else:
+            padding = 2
+            min_x = max(0, min_x - padding)
+            min_y = max(0, min_y - padding)
+            max_x = min(mask.shape[1] - 1, max_x + padding)
+            max_y = min(mask.shape[0] - 1, max_y + padding)
+            width = max(3, max_x - min_x + 1)
+            height = max(3, max_y - min_y + 1)
+
+        component_mask = component["mask"]
+        component_pixels = pixels[component_mask]
+        target_rgb = None
+        if update_target and component_pixels.size:
+            target_rgb = tuple(int(round(value)) for value in component_pixels.mean(axis=0))
+
+        return {
+            "left": int(screen_left + min_x),
+            "top": int(screen_top + min_y),
+            "width": int(width),
+            "height": int(height),
+            "target_rgb": target_rgb,
+            "source": source,
+            "match_count": int(component["count"]),
+        }
 
     return None
+
+
+def red_overlay_mask(pixels):
+    r = pixels[:, :, 0]
+    g = pixels[:, :, 1]
+    b = pixels[:, :, 2]
+    return (
+        (r >= 145)
+        & ((r - g) >= 45)
+        & ((r - b) >= 45)
+        & (g <= 180)
+        & (b <= 180)
+    )
+
+
+def largest_component(mask):
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError("numpy is required for coordinate search. Install requirements first.") from exc
+
+    height, width = mask.shape
+    visited = np.zeros(mask.shape, dtype=bool)
+    best = None
+
+    for start_y, start_x in np.argwhere(mask):
+        start_y = int(start_y)
+        start_x = int(start_x)
+        if visited[start_y, start_x]:
+            continue
+
+        stack = [(start_x, start_y)]
+        points = []
+        visited[start_y, start_x] = True
+
+        while stack:
+            x, y = stack.pop()
+            points.append((x, y))
+            for next_x, next_y in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if next_x < 0 or next_y < 0 or next_x >= width or next_y >= height:
+                    continue
+                if visited[next_y, next_x] or not mask[next_y, next_x]:
+                    continue
+                visited[next_y, next_x] = True
+                stack.append((next_x, next_y))
+
+        if best is None or len(points) > best["count"]:
+            xs = [point[0] for point in points]
+            ys = [point[1] for point in points]
+            component_mask = np.zeros(mask.shape, dtype=bool)
+            for point_x, point_y in points:
+                component_mask[point_y, point_x] = True
+            best = {
+                "count": len(points),
+                "bbox": (min(xs), min(ys), max(xs), max(ys)),
+                "mask": component_mask,
+            }
+
+    return best
 
 
 def runtime_command_for(script_id, key, value):
@@ -542,9 +662,9 @@ def read_pending_changelog():
     return changelog
 
 
-def write_pending_changelog(release, copied_files):
+def write_pending_changelog(release, copied_files, body=None):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    body = str(release.get("body") or "").strip()
+    body = str(body if body is not None else release.get("body") or "").strip()
     if not body:
         body = "No changelog was provided for this release."
     payload = {
@@ -557,7 +677,7 @@ def write_pending_changelog(release, copied_files):
     PENDING_CHANGELOG_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def fetch_latest_release():
+def fetch_releases():
     request = urllib.request.Request(
         RELEASES_API_URL,
         headers={
@@ -575,10 +695,39 @@ def fetch_latest_release():
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Could not reach GitHub: {exc.reason}") from exc
 
+    return [release for release in releases if not release.get("draft")]
+
+
+def fetch_latest_release():
+    releases = fetch_releases()
     for release in releases:
         if not release.get("draft"):
             return release
     raise RuntimeError("No published release found yet")
+
+
+def build_update_changelog(current_version, target_version):
+    try:
+        releases = fetch_releases()
+    except Exception:
+        return ""
+
+    relevant = [
+        release
+        for release in releases
+        if version_is_newer(release.get("tag_name", ""), current_version)
+        and not version_is_newer(release.get("tag_name", ""), target_version)
+    ]
+    relevant.sort(key=lambda release: version_tuple(release.get("tag_name", "")), reverse=True)
+    if not relevant:
+        return ""
+
+    parts = []
+    for release in relevant:
+        tag = release.get("tag_name", "unknown")
+        body = str(release.get("body") or "").strip() or "No changelog was provided for this release."
+        parts.append(f"## {tag}\n\n{body}")
+    return "\n\n".join(parts)
 
 
 def version_tuple(version: str):

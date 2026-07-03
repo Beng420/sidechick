@@ -373,9 +373,9 @@ async function findFihRegion() {
 
   coordinateSearchActive = true;
   els.coordinateCancelButton.disabled = false;
-  els.coordinateStatus.textContent = "Left-click near the target color. Click again anytime to move the marker, even on another monitor. Press Escape or cancel to stop.";
+  els.coordinateStatus.textContent = "Left-click near the red bite overlay. Click again anytime to move the marker. Sidechick calibrates position, size, and target color.";
   els.coordinateOverlay.classList.remove("hidden");
-  appendLogs(["Coordinate search started. Left-click near the target color. Click again to move the marker. Press Escape or cancel to stop."]);
+  appendLogs(["Coordinate search started. Left-click near the red bite overlay. Yellow overlays are ignored. Press Escape or cancel to stop."]);
   try {
     const result = await window.pywebview.api.find_fih_region(config);
     appendLogs([result.message]);

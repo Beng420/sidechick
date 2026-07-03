@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.8.10
+
+- Added automatic FIh coordinate search calibration for region width, region height, and red target RGB.
+- Changed FIh detection labels from Region left/top to clearer Region X/Y wording.
+- Changed FIh coordinate search to ignore yellow overlays when selecting a target color.
+
+## v1.8.9
+
+- Added periodic FIh scan diagnostics with matched pixel count, closest RGB color, color distance, and average region color.
+- Changed the post-update changelog popup to include release notes for every skipped version between the old and new version.
+
 ## v1.8.8
 
 - Fixed FIh runtime scanning using different Windows screen coordinates than coordinate search on scaled multi-monitor setups.

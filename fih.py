@@ -64,6 +64,8 @@ CURRENT_CONFIG_VERSION = 5
 FAST_ACTION_GAP = 0.10
 PAUSE_KEY_DEBOUNCE = 0.06
 COLOR_RESET_TIMEOUT = 1.50
+SCAN_DIAGNOSTIC_INTERVAL = 2.50
+SCAN_MATCH_LOG_INTERVAL = 1.00
 MOUSE_BUTTON_ALIASES = {
     "left": "left",
     "mouse:left": "left",
@@ -883,6 +885,8 @@ class FishingHelper:
         if self.orb_pending:
             self.last_orb_time -= self.cfg.orb_prepare_seconds
         self.next_scan_at = 0.0
+        self.next_scan_diagnostic_at = 0.0
+        self.next_match_log_at = 0.0
         self.wait_for_color_reset = False
         self.color_reset_deadline = 0.0
 
@@ -1166,11 +1170,47 @@ class FishingHelper:
         elif command == "set_hotkeys_enabled":
             self.set_hotkeys_enabled(bool(data.get("enabled")))
 
-    def is_bite_color(self) -> bool:
+    def scan_bite_color(self):
         pixels = self.screen.get_rgb_pixels()
         diff = pixels - self.target_rgb
         distance_squared = np.sum(diff * diff, axis=2)
-        return bool(np.any(distance_squared <= self.tolerance_squared))
+        matches = distance_squared <= self.tolerance_squared
+        match_count = int(np.count_nonzero(matches))
+        closest_index = int(np.argmin(distance_squared))
+        closest_y, closest_x = np.unravel_index(closest_index, distance_squared.shape)
+        closest_rgb = pixels[closest_y, closest_x]
+        avg_rgb = pixels.mean(axis=(0, 1))
+        closest_distance = float(np.sqrt(distance_squared[closest_y, closest_x]))
+
+        return {
+            "is_match": match_count > 0,
+            "match_count": match_count,
+            "total_pixels": int(distance_squared.size),
+            "closest_rgb": tuple(int(round(value)) for value in closest_rgb),
+            "avg_rgb": tuple(int(round(value)) for value in avg_rgb),
+            "closest_distance": closest_distance,
+            "closest_position": (int(closest_x), int(closest_y)),
+        }
+
+    def format_scan_diagnostic(self, scan):
+        closest_x, closest_y = scan["closest_position"]
+        return (
+            f"matches={scan['match_count']}/{scan['total_pixels']} | "
+            f"closest_rgb={list(scan['closest_rgb'])} at +{closest_x},+{closest_y} | "
+            f"distance={scan['closest_distance']:.1f}/{self.cfg.tolerance:.1f} | "
+            f"avg_rgb={list(scan['avg_rgb'])}"
+        )
+
+    def log_scan_feedback(self, scan, now):
+        if scan["is_match"]:
+            if now >= self.next_match_log_at:
+                print("[SCAN] Bissfarbe erkannt: " + self.format_scan_diagnostic(scan))
+                self.next_match_log_at = now + SCAN_MATCH_LOG_INTERVAL
+            return
+
+        if now >= self.next_scan_diagnostic_at:
+            print("[SCAN] " + self.format_scan_diagnostic(scan))
+            self.next_scan_diagnostic_at = now + SCAN_DIAGNOSTIC_INTERVAL
 
     def should_start_cycle(self, now: float) -> bool:
         if not self.timer_mode_enabled:
@@ -1281,11 +1321,14 @@ class FishingHelper:
         self.update_orb_state(now)
 
         try:
-            color_is_red = self.is_bite_color()
+            scan = self.scan_bite_color()
         except OSError:
             print("Warnung: Konnte Bildschirm nicht lesen. Warte kurz...")
             self.next_scan_at = time.monotonic() + 1.0
             return
+
+        color_is_red = scan["is_match"]
+        self.log_scan_feedback(scan, now)
 
         if self.wait_for_color_reset:
             if not color_is_red:
