@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.8.3
+
+- Added marked-position feedback and a temporary crosshair overlay during FIh coordinate search.
+- Changed the default Sidechick window size to give settings more room.
+- Changed FIh bite detection to react to matching pixels inside the region instead of averaging the whole region color.
+- Fixed FIh getting stuck waiting for the bite color to reset after manual input.
+
 ## v1.8.2
 
 - Added coordinate search for FIh region calibration.

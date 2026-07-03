@@ -29,6 +29,8 @@ window.addEventListener("DOMContentLoaded", () => {
     "changelog-title",
     "changelog-body",
     "changelog-close-button",
+    "coordinate-overlay",
+    "coordinate-status",
     "settings-tooltip",
   ]) {
     els[toCamel(id)] = document.getElementById(id);
@@ -361,13 +363,19 @@ async function findFihRegion() {
     return;
   }
 
-  appendLogs(["Coordinate search started. Click near the target color on your screen."]);
-  const result = await window.pywebview.api.find_fih_region(config);
-  appendLogs([result.message]);
-  if (result.config) {
-    state.selected_config = result.config;
-    renderSettings();
-    renderStatus();
+  els.coordinateStatus.textContent = "Left-click near the target color. A marker will stay there while Sidechick scans.";
+  els.coordinateOverlay.classList.remove("hidden");
+  appendLogs(["Coordinate search started. Left-click near the target color."]);
+  try {
+    const result = await window.pywebview.api.find_fih_region(config);
+    appendLogs([result.message]);
+    if (result.config) {
+      state.selected_config = result.config;
+      renderSettings();
+      renderStatus();
+    }
+  } finally {
+    els.coordinateOverlay.classList.add("hidden");
   }
 }
 

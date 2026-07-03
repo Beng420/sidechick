@@ -120,17 +120,23 @@ class SidechickAPI:
 
     def find_fih_region(self, config):
         config = save_script_config("fih", config)
+        marker = None
 
         try:
             click_x, click_y = wait_for_screen_click(20.0)
+            marker = CoordinateMarker(click_x, click_y, radius=30)
+            marker.show()
             found = scan_for_target_color(config, click_x, click_y, radius=30, timeout=20.0)
         except Exception as exc:
             return {"ok": False, "message": str(exc), "config": config}
+        finally:
+            if marker is not None:
+                marker.close()
 
         if not found:
             return {
                 "ok": False,
-                "message": "No target color found within 30px of the clicked point in 20 seconds.",
+                "message": f"No target color found within 30px of marked position ({click_x}, {click_y}) in 20 seconds.",
                 "config": config,
             }
 
@@ -271,8 +277,8 @@ def wait_for_screen_click(timeout):
     clicked = threading.Event()
     position = {"x": None, "y": None}
 
-    def on_click(x, y, _button, pressed):
-        if pressed:
+    def on_click(x, y, button, pressed):
+        if pressed and button == pynput_mouse.Button.left:
             position["x"] = int(x)
             position["y"] = int(y)
             clicked.set()
@@ -288,6 +294,103 @@ def wait_for_screen_click(timeout):
         listener.stop()
 
     return position["x"], position["y"]
+
+
+class CoordinateMarker:
+    def __init__(self, x, y, radius):
+        self.x = int(x)
+        self.y = int(y)
+        self.radius = int(radius)
+        self.stop_event = threading.Event()
+        self.ready_event = threading.Event()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+
+    def show(self):
+        self.thread.start()
+        self.ready_event.wait(0.75)
+
+    def close(self):
+        self.stop_event.set()
+        self.thread.join(1.0)
+
+    def _run(self):
+        try:
+            import tkinter as tk
+            import mss
+        except ImportError:
+            self.ready_event.set()
+            return
+
+        try:
+            with mss.mss() as sct:
+                virtual = sct.monitors[0]
+                left = int(virtual["left"])
+                top = int(virtual["top"])
+                width = int(virtual["width"])
+                height = int(virtual["height"])
+
+            root = tk.Tk()
+            root.overrideredirect(True)
+            root.attributes("-topmost", True)
+            try:
+                root.attributes("-transparentcolor", "#000001")
+            except tk.TclError:
+                root.attributes("-alpha", 0.92)
+            root.geometry(f"{width}x{height}{left:+d}{top:+d}")
+
+            canvas = tk.Canvas(root, width=width, height=height, bg="#000001", highlightthickness=0)
+            canvas.pack(fill="both", expand=True)
+
+            x = self.x - left
+            y = self.y - top
+            r = self.radius
+            accent = "#d8ff5f"
+            danger = "#ff5f6d"
+
+            canvas.create_oval(x - r, y - r, x + r, y + r, outline=accent, width=2)
+            canvas.create_line(x - r - 14, y, x + r + 14, y, fill=danger, width=2)
+            canvas.create_line(x, y - r - 14, x, y + r + 14, fill=danger, width=2)
+            canvas.create_rectangle(x - 3, y - 3, x + 3, y + 3, outline=accent, width=2)
+
+            for offset in range(-r, r + 1, 10):
+                canvas.create_line(x + offset, y - r, x + offset, y + r, fill=accent, width=1)
+                canvas.create_line(x - r, y + offset, x + r, y + offset, fill=accent, width=1)
+
+            label = f"Position {self.x}, {self.y} markiert"
+            label_x = min(max(x + r + 18, 10), width - 220)
+            label_y = min(max(y - r - 10, 10), height - 38)
+            text_id = canvas.create_text(
+                label_x + 10,
+                label_y + 8,
+                text=label,
+                anchor="nw",
+                fill="#f2f0eb",
+                font=("Segoe UI", 11, "bold"),
+            )
+            bounds = canvas.bbox(text_id)
+            if bounds:
+                box = canvas.create_rectangle(
+                    bounds[0] - 8,
+                    bounds[1] - 5,
+                    bounds[2] + 8,
+                    bounds[3] + 5,
+                    fill="#101215",
+                    outline=accent,
+                    width=1,
+                )
+                canvas.tag_lower(box, text_id)
+
+            def poll_close():
+                if self.stop_event.is_set():
+                    root.destroy()
+                    return
+                root.after(80, poll_close)
+
+            self.ready_event.set()
+            root.after(80, poll_close)
+            root.mainloop()
+        except Exception:
+            self.ready_event.set()
 
 
 def scan_for_target_color(config, click_x, click_y, radius, timeout):

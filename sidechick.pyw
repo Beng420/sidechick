@@ -105,9 +105,9 @@ def main():
         f"Sidechick {APP_VERSION}",
         UI_PATH.as_uri(),
         js_api=api,
-        width=1120,
-        height=760,
-        min_size=(900, 620),
+        width=1280,
+        height=820,
+        min_size=(1040, 680),
     )
     webview.start(debug=False)
     api.shutdown()

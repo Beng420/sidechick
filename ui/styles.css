@@ -447,6 +447,7 @@ body.sidebar-collapsed .sidebar-foot {
 
 .capture-overlay.hidden,
 .changelog-overlay.hidden,
+.coordinate-overlay.hidden,
 .settings-tooltip.hidden {
   display: none;
 }
@@ -505,6 +506,29 @@ body.sidebar-collapsed .sidebar-foot {
   overflow: auto;
   white-space: pre-wrap;
   font: 13px "Segoe UI", Inter, system-ui, sans-serif;
+}
+
+.coordinate-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.42);
+  z-index: 11;
+  pointer-events: none;
+}
+
+.coordinate-box {
+  width: min(420px, 90vw);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+.coordinate-box p {
+  color: var(--muted);
 }
 
 .settings-tooltip {

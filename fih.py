@@ -46,6 +46,7 @@ pyautogui.PAUSE = 0
 CURRENT_CONFIG_VERSION = 5
 FAST_ACTION_GAP = 0.10
 PAUSE_KEY_DEBOUNCE = 0.06
+COLOR_RESET_TIMEOUT = 1.50
 MOUSE_BUTTON_ALIASES = {
     "left": "left",
     "mouse:left": "left",
@@ -606,6 +607,16 @@ class ScreenReader:
         avg_bgra = np.asarray(frame).mean(axis=(0, 1))
         return avg_bgra[2], avg_bgra[1], avg_bgra[0]
 
+    def get_rgb_pixels(self):
+        if self.backend == "dxcam":
+            frame = self.camera.grab(region=self.region)
+            if frame is None:
+                raise OSError("dxcam returned no frame")
+            return np.asarray(frame, dtype=np.float32)
+
+        frame = np.asarray(self.sct.grab(self.monitor), dtype=np.float32)
+        return frame[:, :, [2, 1, 0]]
+
     def close(self):
         if self.sct is not None:
             self.sct.close()
@@ -856,6 +867,7 @@ class FishingHelper:
             self.last_orb_time -= self.cfg.orb_prepare_seconds
         self.next_scan_at = 0.0
         self.wait_for_color_reset = False
+        self.color_reset_deadline = 0.0
 
         # Current macro sequence. Only one step is executed per tick.
         self.steps: list[Step] = []
@@ -1033,6 +1045,7 @@ class FishingHelper:
             self.next_step_at = 0.0
             self.next_scan_at = now + self.cfg.post_cycle_gap
             self.wait_for_color_reset = True
+            self.color_reset_deadline = now + COLOR_RESET_TIMEOUT
 
     def handle_binding_press(self, key: str):
         hotkeys = self.cfg.hotkeys
@@ -1133,9 +1146,10 @@ class FishingHelper:
             self.set_hotkeys_enabled(bool(data.get("enabled")))
 
     def is_bite_color(self) -> bool:
-        avg_rgb = np.array(self.screen.get_avg_rgb(), dtype=np.float32)
-        diff = avg_rgb - self.target_rgb
-        return float(np.dot(diff, diff)) < self.tolerance_squared
+        pixels = self.screen.get_rgb_pixels()
+        diff = pixels - self.target_rgb
+        distance_squared = np.sum(diff * diff, axis=2)
+        return bool(np.any(distance_squared <= self.tolerance_squared))
 
     def should_start_cycle(self, now: float) -> bool:
         if not self.timer_mode_enabled:
@@ -1256,6 +1270,11 @@ class FishingHelper:
             if not color_is_red:
                 self.wait_for_color_reset = False
                 print("--> Wieder bereit: warte auf den naechsten Biss.")
+            elif now >= self.color_reset_deadline:
+                self.wait_for_color_reset = False
+                print("--> Bissfarbe bleibt aktiv: starte Ablauf trotzdem.")
+                if self.should_start_cycle(now):
+                    self.start_cycle()
             return
 
         if color_is_red and self.should_start_cycle(now):
