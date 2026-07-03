@@ -7,7 +7,7 @@ APP_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = APP_DIR / "configs"
 APP_CONFIG_PATH = CONFIG_DIR / "sidechick.json"
 LEGACY_FIH_CONFIG_PATH = APP_DIR / "fih_config.json"
-APP_VERSION = "v1.8.3"
+APP_VERSION = "v1.8.5"
 UPDATE_REPO = "Beng420/sidechick"
 
 
@@ -204,7 +204,7 @@ SETTING_HELP = {
         "target_rgb.1": "Gruenwert der Bissfarbe. Zusammen mit Rot und Blau bildet er die Zielfarbe fuer die Erkennung.",
         "target_rgb.2": "Blauwert der Bissfarbe. Zusammen mit Rot und Gruen bildet er die Zielfarbe fuer die Erkennung.",
         "tolerance": "Erlaubte Abweichung von der Zielfarbe. Hoeher erkennt mehr Varianten, kann aber auch falsche Treffer verursachen.",
-        "find_region": "Startet eine Kalibrierung fuer die Region-Koordinaten. Klicke danach auf den Bildschirm; Sidechick sucht 20 Sekunden lang im 30px-Umkreis nach der Zielfarbe und speichert die obere linke Fundstelle.",
+        "find_region": "Startet eine Kalibrierung fuer die Region-Koordinaten. Jeder Linksklick setzt die markierte Position neu; mit Escape oder Cancel kannst du die Suche abbrechen.",
         "scan_interval": "Zeit zwischen zwei Farbpruefungen, solange kein Ablauf laeuft. Niedriger reagiert schneller, braucht aber mehr CPU.",
         "action_gap": "Pause zwischen einzelnen Aktionen im FIh-Ablauf, zum Beispiel Slot wechseln und Rechtsklick. Erhoehe den Wert, wenn das Spiel Eingaben verschluckt.",
         "post_cycle_gap": "Wartezeit nach dem letzten Auswerfen, bevor FIh wieder scannt. Hilft gegen doppelte Ablaufe direkt nach einem Cast.",

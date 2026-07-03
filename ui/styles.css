@@ -525,10 +525,15 @@ body.sidebar-collapsed .sidebar-foot {
   border-radius: 8px;
   padding: 22px;
   box-shadow: var(--shadow);
+  pointer-events: auto;
 }
 
 .coordinate-box p {
   color: var(--muted);
+}
+
+.coordinate-box button {
+  margin-top: 6px;
 }
 
 .settings-tooltip {

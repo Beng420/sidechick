@@ -1,5 +1,6 @@
 let state = null;
 let captureTarget = null;
+let coordinateSearchActive = false;
 
 const els = {};
 
@@ -31,6 +32,7 @@ window.addEventListener("DOMContentLoaded", () => {
     "changelog-close-button",
     "coordinate-overlay",
     "coordinate-status",
+    "coordinate-cancel-button",
     "settings-tooltip",
   ]) {
     els[toCamel(id)] = document.getElementById(id);
@@ -46,6 +48,7 @@ window.addEventListener("DOMContentLoaded", () => {
   els.installUpdateButton.addEventListener("click", installUpdate);
   els.requirementsButton.addEventListener("click", installRequirements);
   els.changelogCloseButton.addEventListener("click", dismissChangelog);
+  els.coordinateCancelButton.addEventListener("click", cancelFihRegionSearch);
 });
 
 window.addEventListener("pywebviewready", async () => {
@@ -55,6 +58,11 @@ window.addEventListener("pywebviewready", async () => {
 });
 
 window.addEventListener("keydown", event => {
+  if (coordinateSearchActive && event.key === "Escape") {
+    event.preventDefault();
+    cancelFihRegionSearch();
+    return;
+  }
   if (!captureTarget) {
     return;
   }
@@ -363,9 +371,11 @@ async function findFihRegion() {
     return;
   }
 
-  els.coordinateStatus.textContent = "Left-click near the target color. A marker will stay there while Sidechick scans.";
+  coordinateSearchActive = true;
+  els.coordinateCancelButton.disabled = false;
+  els.coordinateStatus.textContent = "Left-click near the target color. Click again anytime to move the marker, even on another monitor. Press Escape or cancel to stop.";
   els.coordinateOverlay.classList.remove("hidden");
-  appendLogs(["Coordinate search started. Left-click near the target color."]);
+  appendLogs(["Coordinate search started. Left-click near the target color. Click again to move the marker. Press Escape or cancel to stop."]);
   try {
     const result = await window.pywebview.api.find_fih_region(config);
     appendLogs([result.message]);
@@ -375,8 +385,18 @@ async function findFihRegion() {
       renderStatus();
     }
   } finally {
+    coordinateSearchActive = false;
     els.coordinateOverlay.classList.add("hidden");
   }
+}
+
+async function cancelFihRegionSearch() {
+  if (!coordinateSearchActive) {
+    return;
+  }
+  els.coordinateCancelButton.disabled = true;
+  els.coordinateStatus.textContent = "Cancelling coordinate search...";
+  await window.pywebview.api.cancel_fih_region_search();
 }
 
 async function checkUpdates(options = {}) {

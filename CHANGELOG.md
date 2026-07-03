@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.8.5
+
+- Added manual cancellation for FIh coordinate search through the popup Cancel button or Escape.
+
+## v1.8.4
+
+- Added coordinate search repositioning on every left click while calibration is running.
+- Added multi-monitor support for FIh coordinate search marker placement.
+- Changed the coordinate marker to run in a separate helper process and avoid covering the clicked target pixel.
+- Fixed coordinate marker crashes taking down Sidechick.
+- Fixed coordinate search coordinate mismatches on scaled multi-monitor setups.
+
 ## v1.8.3
 
 - Added marked-position feedback and a temporary crosshair overlay during FIh coordinate search.

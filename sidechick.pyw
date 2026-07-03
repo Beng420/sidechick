@@ -8,6 +8,20 @@ UI_PATH = APP_DIR / "ui" / "index.html"
 REQUIREMENTS_PATH = APP_DIR / "requirements.txt"
 
 
+def enable_dpi_awareness():
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
 def import_webview():
     try:
         import webview
@@ -88,6 +102,8 @@ def show_dependency_prompt(missing_package: str) -> bool:
 
 
 def main():
+    enable_dpi_awareness()
+
     webview, import_error = import_webview()
     if webview is None:
         missing_package = import_error.name or "pywebview"
