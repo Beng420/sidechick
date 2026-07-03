@@ -372,7 +372,8 @@ class CoordinateMarkerProcess:
     def __init__(self, radius):
         self.radius = int(radius)
         self.process = None
-        self.monitor = None
+        self.virtual_monitor = None
+        self.monitors = []
 
     def start(self):
         try:
@@ -382,12 +383,21 @@ class CoordinateMarkerProcess:
 
         with mss.mss() as sct:
             virtual = sct.monitors[0]
-            self.monitor = {
+            self.virtual_monitor = {
                 "left": int(virtual["left"]),
                 "top": int(virtual["top"]),
                 "width": int(virtual["width"]),
                 "height": int(virtual["height"]),
             }
+            self.monitors = [
+                {
+                    "left": int(monitor["left"]),
+                    "top": int(monitor["top"]),
+                    "width": int(monitor["width"]),
+                    "height": int(monitor["height"]),
+                }
+                for monitor in sct.monitors[1:]
+            ]
 
         script_path = APP_DIR / "backend" / "coordinate_marker.py"
         startupinfo = None
@@ -412,7 +422,10 @@ class CoordinateMarkerProcess:
             self.process = None
 
     def show(self, x, y):
-        self.send({"command": "show", "x": int(x), "y": int(y), "radius": self.radius, "monitor": self.monitor})
+        x = int(x)
+        y = int(y)
+        monitor = monitor_for_point(self.monitors, x, y) or self.virtual_monitor
+        self.send({"command": "show", "x": x, "y": y, "radius": self.radius, "monitor": monitor})
 
     def close(self):
         self.send({"command": "close"})
@@ -434,6 +447,17 @@ class CoordinateMarkerProcess:
             self.process.stdin.flush()
         except OSError:
             pass
+
+
+def monitor_for_point(monitors, x, y):
+    for monitor in monitors:
+        left = int(monitor["left"])
+        top = int(monitor["top"])
+        right = left + int(monitor["width"])
+        bottom = top + int(monitor["height"])
+        if left <= x < right and top <= y < bottom:
+            return monitor
+    return None
 
 
 def scan_once_for_target_color(sct, config, click_x, click_y, radius):

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.8.7
+
+- Fixed coordinate marker not appearing when Sidechick is on a secondary monitor and the clicked position is on the main monitor.
+
+## v1.8.6
+
+- Fixed coordinate marker placement on secondary monitors, especially when Windows reports negative virtual screen coordinates.
+
 ## v1.8.5
 
 - Added manual cancellation for FIh coordinate search through the popup Cancel button or Escape.

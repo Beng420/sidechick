@@ -10,6 +10,10 @@ ACCENT = "#d8ff5f"
 DANGER = "#3db7ff"
 PANEL = "#101215"
 TEXT = "#f2f0eb"
+HWND_TOPMOST = -1
+SWP_NOACTIVATE = 0x0010
+SWP_SHOWWINDOW = 0x0040
+MONITOR_DEFAULTTONEAREST = 2
 
 
 def enable_dpi_awareness():
@@ -48,10 +52,10 @@ class MarkerApp:
 
         self.canvas = tk.Canvas(self.root, bg=BACKGROUND, highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
-        self.virtual_left = 0
-        self.virtual_top = 0
-        self.virtual_width = 1
-        self.virtual_height = 1
+        self.monitor_left = 0
+        self.monitor_top = 0
+        self.monitor_width = 1
+        self.monitor_height = 1
 
     def run(self):
         threading.Thread(target=self.read_commands, daemon=True).start()
@@ -83,25 +87,59 @@ class MarkerApp:
         self.root.after(40, self.process_commands)
 
     def show_marker(self, command):
+        screen_x = int(command["x"])
+        screen_y = int(command["y"])
         monitor = command.get("monitor") or {}
-        self.virtual_left = int(monitor.get("left", 0))
-        self.virtual_top = int(monitor.get("top", 0))
-        self.virtual_width = int(monitor.get("width", 1))
-        self.virtual_height = int(monitor.get("height", 1))
+        if sys.platform.startswith("win"):
+            monitor = windows_monitor_for_point(screen_x, screen_y) or monitor
 
-        geometry = (
-            f"{self.virtual_width}x{self.virtual_height}"
-            f"{self.virtual_left:+d}{self.virtual_top:+d}"
-        )
-        self.root.geometry(geometry)
-        self.canvas.config(width=self.virtual_width, height=self.virtual_height)
+        self.monitor_left = int(monitor.get("left", 0))
+        self.monitor_top = int(monitor.get("top", 0))
+        self.monitor_width = int(monitor.get("width", 1))
+        self.monitor_height = int(monitor.get("height", 1))
+
+        self.size_window()
         self.root.deiconify()
+        self.root.update_idletasks()
+        self.place_window()
         self.root.lift()
 
-        x = int(command["x"]) - self.virtual_left
-        y = int(command["y"]) - self.virtual_top
+        x = screen_x - self.monitor_left
+        y = screen_y - self.monitor_top
         radius = int(command.get("radius", 30))
-        self.draw_marker(x, y, radius, int(command["x"]), int(command["y"]))
+        self.draw_marker(x, y, radius, screen_x, screen_y)
+        self.root.after(20, self.place_window)
+
+    def size_window(self):
+        width = max(1, self.monitor_width)
+        height = max(1, self.monitor_height)
+        self.root.geometry(f"{width}x{height}")
+        self.canvas.config(width=width, height=height)
+        self.root.update_idletasks()
+
+    def place_window(self):
+        width = max(1, self.monitor_width)
+        height = max(1, self.monitor_height)
+
+        if not sys.platform.startswith("win"):
+            self.root.geometry(f"{width}x{height}{self.monitor_left:+d}{self.monitor_top:+d}")
+            return
+
+        try:
+            import ctypes
+
+            hwnd = self.root.winfo_id()
+            ctypes.windll.user32.SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                self.monitor_left,
+                self.monitor_top,
+                width,
+                height,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            )
+        except Exception:
+            self.root.geometry(f"{width}x{height}{self.monitor_left:+d}{self.monitor_top:+d}")
 
     def draw_marker(self, x, y, radius, screen_x, screen_y):
         self.canvas.delete("all")
@@ -121,8 +159,8 @@ class MarkerApp:
             self.canvas.create_line(x - r, y + offset, x + r, y + offset, fill=ACCENT, width=1)
 
         label = f"Position {screen_x}, {screen_y} markiert"
-        label_x = min(max(x + r + 18, 10), max(10, self.virtual_width - 250))
-        label_y = min(max(y - r - 10, 10), max(10, self.virtual_height - 44))
+        label_x = min(max(x + r + 18, 10), max(10, self.monitor_width - 250))
+        label_y = min(max(y - r - 10, 10), max(10, self.monitor_height - 44))
         text_id = self.canvas.create_text(
             label_x + 10,
             label_y + 8,
@@ -143,6 +181,51 @@ class MarkerApp:
                 width=1,
             )
             self.canvas.tag_lower(box, text_id)
+
+
+def windows_monitor_for_point(x, y):
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class POINT(ctypes.Structure):
+            _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+
+        class RECT(ctypes.Structure):
+            _fields_ = [
+                ("left", wintypes.LONG),
+                ("top", wintypes.LONG),
+                ("right", wintypes.LONG),
+                ("bottom", wintypes.LONG),
+            ]
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("rcMonitor", RECT),
+                ("rcWork", RECT),
+                ("dwFlags", wintypes.DWORD),
+            ]
+
+        point = POINT(int(x), int(y))
+        handle = ctypes.windll.user32.MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST)
+        if not handle:
+            return None
+
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        if not ctypes.windll.user32.GetMonitorInfoW(handle, ctypes.byref(info)):
+            return None
+
+        rect = info.rcMonitor
+        return {
+            "left": int(rect.left),
+            "top": int(rect.top),
+            "width": int(rect.right - rect.left),
+            "height": int(rect.bottom - rect.top),
+        }
+    except Exception:
+        return None
 
 
 if __name__ == "__main__":
