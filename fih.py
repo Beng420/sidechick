@@ -8,6 +8,23 @@ from pathlib import Path
 from threading import RLock
 from typing import Callable
 
+
+def enable_dpi_awareness():
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
+enable_dpi_awareness()
+
 try:
     import mss
     import numpy as np
@@ -915,6 +932,10 @@ class FishingHelper:
             f"Timing: action_gap={self.cfg.action_gap:.3f}s | "
             f"scan_interval={self.cfg.scan_interval:.3f}s | "
             f"script_input_ignore={self.cfg.script_input_ignore:.3f}s"
+        )
+        print(
+            f"Erkennung: region={list(self.cfg.region)} | "
+            f"target_rgb={list(self.cfg.target_rgb)} | tolerance={self.cfg.tolerance}"
         )
         print(
             f"[{stop_keys or 'none'}] Beenden | [{pause_keys or 'none'}] Pause/Fortsetzen | "

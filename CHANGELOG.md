@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.8.8
+
+- Fixed FIh runtime scanning using different Windows screen coordinates than coordinate search on scaled multi-monitor setups.
+
 ## v1.8.7
 
 - Fixed coordinate marker not appearing when Sidechick is on a secondary monitor and the clicked position is on the main monitor.
